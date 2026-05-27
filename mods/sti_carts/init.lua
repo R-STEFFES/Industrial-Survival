@@ -3,15 +3,13 @@
 local S = minetest.get_translator("sti_carts")
 local default_speed_max = carts.speed_max or 7
 
--- Wir holen uns das Basis-Cart aus dem Register
 local base_cart = minetest.registered_entities["carts:cart"]
 
 if base_cart then
-	-- 1. PERSISTENZ-PATCH (Sichert die IDs und Kopplungen beim Neustart)
+	-- 1. PERSISTENZ (IDs speichern)
 	local original_get_staticdata = base_cart.get_staticdata
 	function base_cart:get_staticdata()
-		local original_str = original_get_staticdata(self)
-		local data = minetest.deserialize(original_str) or {}
+		local data = minetest.deserialize(original_get_staticdata(self)) or {}
 		data.sti_cart_id = self.cart_id
 		data.sti_leader_id = self.leader_id
 		return minetest.serialize(data)
@@ -27,121 +25,94 @@ if base_cart then
 				self.leader_id = data.sti_leader_id
 			end
 		end
-		if not self.cart_id then
-			self.cart_id = tostring(math.random(100000, 999999))
-		end
+		self.cart_id = self.cart_id or tostring(math.random(100000, 999999))
 	end
 
-	-- 2. PHYSIK- UND KETTEN-RENDER-PATCH
+	-- 2. GUMMIBAND-PHYSIK (Verhindert das Ineinanderglitschen)
 	local original_on_step = base_cart.on_step
 	function base_cart:on_step(dtime)
-		if not self.cart_id then
-			self.cart_id = tostring(math.random(100000, 999999))
-		end
+		self.cart_id = self.cart_id or tostring(math.random(100000, 999999))
 
+		-- Vordermann suchen
 		local leader_obj = nil
 		if self.leader_id then
-			for _, obj in pairs(minetest.get_objects_inside_radius(self.object:get_pos(), 15)) do
+			for _, obj in ipairs(minetest.get_objects_inside_radius(self.object:get_pos(), 15)) do
 				local ent = obj:get_luaentity()
 				if ent and ent.cart_id == self.leader_id then
 					leader_obj = obj
 					break
 				end
 			end
-
-			if leader_obj then
-				self.leader_lost_frames = 0
-				self._saved_driver = self.driver
-				self.driver = nil
+			-- Timeout, falls Vordermann gelöscht wurde
+			if not leader_obj then
+				self.lost_ticks = (self.lost_ticks or 0) + 1
+				if self.lost_ticks > 10 then self.leader_id = nil end
 			else
-				self.leader_lost_frames = (self.leader_lost_frames or 0) + 1
-				if self.leader_lost_frames > 10 then
-					self.leader_id = nil
-					self.leader_lost_frames = 0
-				end
+				self.lost_ticks = 0
 			end
 		end
 
-		-- DYNAMISCHES TEMPOLIMIT
-		local pos = self.object:get_pos()
-		if pos then
-			local node = minetest.get_node(vector.round(pos))
-			local params = carts.railparams[node.name]
-			if params and params.speed_max then
-				carts.speed_max = params.speed_max
-			else
-				carts.speed_max = default_speed_max
-			end
-		end
-
-		-- Originale Bewegung ausführen
+		-- Eigene Schienen-Physik ausführen (Hält das Cart in der Spur!)
 		original_on_step(self, dtime)
 
-		-- RECHTLICHE STANGE & GRAFISCHE KETTE
-		if leader_obj and leader_obj:get_pos() then
-			if self._saved_driver then
-				self.driver = self._saved_driver
-				self._saved_driver = nil
-			end
-
+		-- GESCHWINDIGKEITS-KONTROLLE (Nur für angehängte Waggons)
+		if leader_obj then
+			local pos = self.object:get_pos()
 			local leader_pos = leader_obj:get_pos()
-			local current_pos = self.object:get_pos()
+			local dist = vector.distance(pos, leader_pos)
 
-			if current_pos and leader_pos then
-				local leader_vel = leader_obj:get_velocity()
+			-- ANTI-GLITSCH-NOTBREMSE: Wenn sie fast kollidieren, sofort stehenbleiben
+			if dist < 0.7 then
+				self.object:set_velocity({x=0, y=0, z=0})
+				return
+			end
 
-				-- Ermitteln, in welche Richtung der Zug fährt
-				local leader_dir = carts:velocity_to_dir(leader_vel)
-				if vector.equals(leader_dir, {x=0, y=0, z=0}) then
-					leader_dir = carts:velocity_to_dir(vector.direction(current_pos, leader_pos))
-				end
-				if vector.equals(leader_dir, {x=0, y=0, z=0}) then
-					leader_dir = {x=1, y=0, z=0} -- Absicherung/Fallback
-				end
+			local leader_vel = leader_obj:get_velocity()
+			local leader_speed = vector.length(leader_vel)
 
-				-- DIE "STANGE": Errechnet die exakte starre Position hinter dem Vordermann
-				local bar_length = 1.45 -- Abstand zwischen den Mittelpunkten der Carts
-				local target_pos = vector.subtract(leader_pos, vector.multiply(leader_dir, bar_length))
+			local my_vel = self.object:get_velocity()
+			local my_dir = carts:velocity_to_dir(my_vel)
 
-				-- Position und Geschwindigkeit knallhart erzwingen (Kein Glitschen mehr möglich!)
-				self.object:set_pos(target_pos)
-				self.object:set_velocity(leader_vel)
-
-				-- DIE VISUELLE KETTE:
-				-- Startpunkt am Heck des vorderen Carts berechnen
-				local chain_start = vector.subtract(leader_pos, vector.multiply(leader_dir, 0.55))
-				-- Endpunkt an der Schnauze des hinteren Carts berechnen
-				local chain_end = vector.add(target_pos, vector.multiply(leader_dir, 0.55))
-
-				-- Wir spannen 5 Kettenglieder-Partikel zwischen den Punkten auf
-				local links = 5
-				for i = 0, links do
-					local t = i / links
-					-- Lineare Interpolation (Punkt auf der Linie zwischen Start und Ende)
-					local p_pos = vector.add(chain_start, vector.multiply(vector.subtract(chain_end, chain_start), t))
-
-					minetest.add_particle({
-						pos = p_pos,
-						velocity = leader_vel, -- Die Kette bewegt sich exakt mit dem Zug mit
-						acceleration = {x=0, y=0, z=0},
-						expirationtime = 0.05, -- Hält nur bis zum nächsten Frame, wird permanent erneuert
-						size = 2.5,
-						collisiondetection = false,
-						vertical = false,
-						-- Wir nutzen eine Textur aus dem Spiel. Du kannst auch ein eigenes "sti_carts_chain.png" erstellen!
-						texture = "default_steel_ingot.png^[resize:16x16",
-					})
+			-- Wenn wir stehen, Blickrichtung zum Vordermann auf Schienenachse einrasten
+			if vector.equals(my_dir, {x=0, y=0, z=0}) then
+				local dir_to_leader = vector.direction(pos, leader_pos)
+				if math.abs(dir_to_leader.x) > math.abs(dir_to_leader.z) then
+					my_dir = {x = (dir_to_leader.x > 0 and 1 or -1), y = 0, z = 0}
+				else
+					my_dir = {x = 0, y = 0, z = (dir_to_leader.z > 0 and 1 or -1)}
 				end
 			end
+
+			-- P-CONTROLLER: Berechnet die nötige Geschwindigkeit anhand des Abstands
+			local target_dist = 1.5 -- Perfekter Abstand zwischen den Loren
+			local error_dist = dist - target_dist
+
+			-- Multiplikator bestimmt, wie aggressiv der Waggon Gas gibt, um aufzuholen
+			local correction = error_dist * 4.0
+			local target_speed = leader_speed + correction
+
+			-- Rückwärtsfahren durch Überschwingen verbieten
+			if target_speed < 0 then target_speed = 0 end
+
+			-- Speedlimit beachten
+			local max_s = carts.speed_max or 7
+			if target_speed > max_s then target_speed = max_s end
+
+			-- Neue Geschwindigkeit strikt auf der eigenen Schienenachse anwenden
+			self.object:set_velocity(vector.multiply(my_dir, target_speed))
 		end
 	end
 end
 
 -- ===================================================================
--- 3. DIE KOPPELKETTE (Das Werkzeug zum Verbinden)
+-- 3. DAS IDIOTENSICHERE KOPPEL-TOOL
 -- ===================================================================
+
+-- Temporärer Speicher für Klick-Reihenfolgen
+local coupling_memory = {}
+
 minetest.register_craftitem("sti_carts:coupling_chain", {
-	description = "Koppelkette\n(Klicke nacheinander auf zwei Carts)",
+	description = "Koppelkette\nKlicke erst die Lok, dann Waggon 1, dann Waggon 2...",
 	inventory_image = "sti_carts_coupling_chain.png",
 	stack_max = 1,
 	on_use = function(itemstack, user, pointed_thing)
@@ -149,31 +120,38 @@ minetest.register_craftitem("sti_carts:coupling_chain", {
 
 		local obj = pointed_thing.ref
 		local ent = obj:get_luaentity()
-
 		if not ent or not ent.name:find("cart") then return end
 
-		local player_name = user:get_player_name()
-		local meta = user:get_meta()
-		local first_cart_id = meta:get_string("sti_carts_selected_id")
+		local pname = user:get_player_name()
+		ent.cart_id = ent.cart_id or tostring(math.random(100000, 999999))
 
-		if first_cart_id == "" then
-			if not ent.cart_id then ent.cart_id = tostring(math.random(100000, 999999)) end
+		local prev_obj = coupling_memory[pname]
 
-			meta:set_string("sti_carts_selected_id", ent.cart_id)
-			minetest.chat_send_player(player_name, "=> Erstes Cart ausgewählt! Klicke jetzt auf das Cart dahinter.")
-		else
-			if not ent.cart_id then ent.cart_id = tostring(math.random(100000, 999999)) end
+		if prev_obj and prev_obj:get_pos() then
+			local prev_ent = prev_obj:get_luaentity()
 
-			if first_cart_id == ent.cart_id then
+			if prev_obj == obj then
+				-- Klick auf das SELBE Cart bricht die Kettenbildung ab
+				coupling_memory[pname] = nil
 				ent.leader_id = nil
-				meta:set_string("sti_carts_selected_id", "")
-				minetest.chat_send_player(player_name, "=> Kopplung gelöst / Auswahl aufgehoben.")
-			else
-				ent.leader_id = first_cart_id
-				meta:set_string("sti_carts_selected_id", "")
-				minetest.chat_send_player(player_name, "=> Carts erfolgreich zusammengekoppelt!")
+				minetest.chat_send_player(pname, "[Kopplung] Gelöst! Dieses Cart ist jetzt wieder frei.")
+				return
 			end
+
+			-- Das angeklickte Cart an das vorherige anhängen
+			ent.leader_id = prev_ent.cart_id
+
+			-- WICHTIG: Das aktuelle Cart wird nun als neues "Vorheriges" gespeichert.
+			-- So kannst du direkt das nächste Cart anklicken, um einen langen Zug zu bauen!
+			coupling_memory[pname] = obj
+
+			minetest.chat_send_player(pname, "[Kopplung] Verbunden! Klicke jetzt auf den NÄCHSTEN Waggon dahinter (oder klicke diesen Waggon nochmal, um aufzuhören).")
+		else
+			-- Start der Kettenbildung
+			coupling_memory[pname] = obj
+			minetest.chat_send_player(pname, "[Kopplung] Lokomotive markiert! Klicke jetzt auf den Waggon direkt dahinter.")
 		end
+
 		return itemstack
 	end,
 })
@@ -188,7 +166,7 @@ minetest.register_craft({
 })
 
 -- ===================================================================
--- 4. HYPERSPEED-SCHIENE & CUSTOM CARTS LADEN
+-- 4. HYPERSPEED-SCHIENE & CUSTOM CARTS
 -- ===================================================================
 carts:register_rail("sti_carts:hyperspeed_rail", {
 	description = S("Hyperspeed-Schiene (Kein Boost)"),
