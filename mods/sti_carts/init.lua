@@ -32,7 +32,7 @@ if base_cart then
 		end
 	end
 
-	-- 2. PHYSIK- UND BEWEGUNGS-PATCH
+	-- 2. PHYSIK- UND KETTEN-RENDER-PATCH
 	local original_on_step = base_cart.on_step
 	function base_cart:on_step(dtime)
 		if not self.cart_id then
@@ -40,7 +40,6 @@ if base_cart then
 		end
 
 		local leader_obj = nil
-		-- FIX: Erhöhter Radius (15 Blöcke) fängt den Highspeed-Frame-Lag langer Züge ab
 		if self.leader_id then
 			for _, obj in pairs(minetest.get_objects_inside_radius(self.object:get_pos(), 15)) do
 				local ent = obj:get_luaentity()
@@ -51,11 +50,10 @@ if base_cart then
 			end
 
 			if leader_obj then
-				self.leader_lost_frames = 0 -- Lag-Zähler zurücksetzen
+				self.leader_lost_frames = 0
 				self._saved_driver = self.driver
 				self.driver = nil
 			else
-				-- FIX: Toleranz gegen Server-Lag. Erst nach 10 verpassten Frames entkoppeln!
 				self.leader_lost_frames = (self.leader_lost_frames or 0) + 1
 				if self.leader_lost_frames > 10 then
 					self.leader_id = nil
@@ -76,10 +74,10 @@ if base_cart then
 			end
 		end
 
-		-- Zuerst die originale Physik rechnen lassen, damit das Cart sauber einlenkt
+		-- Originale Bewegung ausführen
 		original_on_step(self, dtime)
 
-		-- NACHBESSERUNG FÜR DIE KOPPLUNG (Verhindert das Kurven-Glitschen)
+		-- RECHTLICHE STANGE & GRAFISCHE KETTE
 		if leader_obj and leader_obj:get_pos() then
 			if self._saved_driver then
 				self.driver = self._saved_driver
@@ -90,42 +88,49 @@ if base_cart then
 			local current_pos = self.object:get_pos()
 
 			if current_pos and leader_pos then
-				local dist = vector.distance(current_pos, leader_pos)
 				local leader_vel = leader_obj:get_velocity()
-				local leader_speed = vector.length(leader_vel)
 
-				-- ANTI-GLITSCH CRITICAL FIX:
-				-- Wir holen uns die exakte Fahrtrichtung, die das Cart auf den Schienen hat.
-				local my_vel = self.object:get_velocity()
-				local my_dir = carts:velocity_to_dir(my_vel)
-
-				-- Wenn das Cart steht, schauen wir in welche Richtung die Schienen zum Anführer zeigen
-				if vector.equals(my_dir, {x=0, y=0, z=0}) then
-					my_dir = carts:velocity_to_dir(vector.direction(current_pos, leader_pos))
+				-- Ermitteln, in welche Richtung der Zug fährt
+				local leader_dir = carts:velocity_to_dir(leader_vel)
+				if vector.equals(leader_dir, {x=0, y=0, z=0}) then
+					leader_dir = carts:velocity_to_dir(vector.direction(current_pos, leader_pos))
+				end
+				if vector.equals(leader_dir, {x=0, y=0, z=0}) then
+					leader_dir = {x=1, y=0, z=0} -- Absicherung/Fallback
 				end
 
-				-- Abstand einhalten (Perfekt sind 1.4 Blöcke)
-				local target_gap = 1.4
-				local speed_correction = (dist - target_gap) * 8.0 -- Reaktionsstärke
-				local target_speed = leader_speed + speed_correction
+				-- DIE "STANGE": Errechnet die exakte starre Position hinter dem Vordermann
+				local bar_length = 1.45 -- Abstand zwischen den Mittelpunkten der Carts
+				local target_pos = vector.subtract(leader_pos, vector.multiply(leader_dir, bar_length))
 
-				-- Werte absichern
-				if target_speed < 0 then target_speed = 0 end
-				local max_s = carts.speed_max or 7
-				if target_speed > max_s then target_speed = max_s end
+				-- Position und Geschwindigkeit knallhart erzwingen (Kein Glitschen mehr möglich!)
+				self.object:set_pos(target_pos)
+				self.object:set_velocity(leader_vel)
 
-				-- FIX: Geschwindigkeit NUR entlang der eigenen Schienenachse erzwingen!
-				self.object:set_velocity(vector.multiply(my_dir, target_speed))
+				-- DIE VISUELLE KETTE:
+				-- Startpunkt am Heck des vorderen Carts berechnen
+				local chain_start = vector.subtract(leader_pos, vector.multiply(leader_dir, 0.55))
+				-- Endpunkt an der Schnauze des hinteren Carts berechnen
+				local chain_end = vector.add(target_pos, vector.multiply(leader_dir, 0.55))
 
-				-- ANTI-DESYNC TELEPORT:
-				-- Falls bei extremem Speed (25m/s+) ein Cart doch mal springt,
-				-- ziehen wir es sanft auf die Schiene zurück, bevor es entgleist.
-				if dist > 2.8 then
-					local rounded_pos = vector.round(current_pos)
-					if carts:is_rail(rounded_pos) then
-						local snap_pos = vector.add(current_pos, vector.multiply(my_dir, (dist - target_gap) * 0.5))
-						self.object:set_pos(snap_pos)
-					end
+				-- Wir spannen 5 Kettenglieder-Partikel zwischen den Punkten auf
+				local links = 5
+				for i = 0, links do
+					local t = i / links
+					-- Lineare Interpolation (Punkt auf der Linie zwischen Start und Ende)
+					local p_pos = vector.add(chain_start, vector.multiply(vector.subtract(chain_end, chain_start), t))
+
+					minetest.add_particle({
+						pos = p_pos,
+						velocity = leader_vel, -- Die Kette bewegt sich exakt mit dem Zug mit
+						acceleration = {x=0, y=0, z=0},
+						expirationtime = 0.05, -- Hält nur bis zum nächsten Frame, wird permanent erneuert
+						size = 2.5,
+						collisiondetection = false,
+						vertical = false,
+						-- Wir nutzen eine Textur aus dem Spiel. Du kannst auch ein eigenes "sti_carts_chain.png" erstellen!
+						texture = "default_steel_ingot.png^[resize:16x16",
+					})
 				end
 			end
 		end
@@ -136,7 +141,7 @@ end
 -- 3. DIE KOPPELKETTE (Das Werkzeug zum Verbinden)
 -- ===================================================================
 minetest.register_craftitem("sti_carts:coupling_chain", {
-	description = "Koppelkette\n(Nutze sie nacheinander auf zwei Carts zum Verbinden)",
+	description = "Koppelkette\n(Klicke nacheinander auf zwei Carts)",
 	inventory_image = "sti_carts_coupling_chain.png",
 	stack_max = 1,
 	on_use = function(itemstack, user, pointed_thing)
