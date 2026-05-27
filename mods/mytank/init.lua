@@ -1,16 +1,13 @@
 local tank = {}
 
 -- =======================================================================
--- 1. GEOMETRISCHE MULTIBLOCK-ERKENNUNG (Box-Validierung)
+-- 1. GEOMETRISCHE MULTIBLOCK-ERKENNUNG (Optimierte Breitensuche)
 -- =======================================================================
 
 function tank.check_and_calculate_tank(controller_pos)
     local current_node = minetest.get_node(controller_pos)
 
     -- Schritt 1: Wir müssen die Dimensionen des Tanks bestimmen.
-    -- Wir suchen die minimale und maximale Ecke des Tanks.
-    -- Da der Controller Teil der Wand ist, starten wir von dort und tasten uns vor.
-
     local min_p = {x = controller_pos.x, y = controller_pos.y, z = controller_pos.z}
     local max_p = {x = controller_pos.x, y = controller_pos.y, z = controller_pos.z}
 
@@ -21,28 +18,50 @@ function tank.check_and_calculate_tank(controller_pos)
                name == "mytank:controller" or name == "mytank:controller_active"
     end
 
-    -- Erweitere die Box in alle Richtungen, um die Außenwände zu finden
-    for _, dir in ipairs({{x=1,y=0,z=0}, {x=-1,y=0,z=0}, {x=0,y=1,z=0}, {x=0,y=-1,z=0}, {x=0,y=0,z=1}, {x=0,y=0,z=-1}}) do
-        local check_pos = vector.new(controller_pos)
-        while true do
-            local next_pos = vector.add(check_pos, dir)
-            local node = minetest.get_node(next_pos)
-            if is_tank_part(node.name) then
-                check_pos = next_pos
-                -- Grenzen updaten
-                min_p.x = math.min(min_p.x, check_pos.x)
-                min_p.y = math.min(min_p.y, check_pos.y)
-                min_p.z = math.min(min_p.z, check_pos.z)
-                max_p.x = math.max(max_p.x, check_pos.x)
-                max_p.y = math.max(max_p.y, check_pos.y)
-                max_p.z = math.max(max_p.z, check_pos.z)
-            else
-                break
+    -- Flood-Fill (Breitensuche) über die Außenhülle des Tanks
+    local visited = {}
+    local queue = {controller_pos}
+
+    local function pos_to_string(pos)
+        return pos.x .. "," .. pos.y .. "," .. pos.z
+    end
+
+    visited[pos_to_string(controller_pos)] = true
+    local safety_limit = 3000 -- Verhindert Server-Crashes bei gigantischen Strukturen
+    local block_count = 0
+
+    while #queue > 0 do
+        local current_pos = table.remove(queue, 1)
+        block_count = block_count + 1
+
+        if block_count > safety_limit then
+            break
+        end
+
+        -- Absolute minimale und maximale Ecken der Box updaten
+        min_p.x = math.min(min_p.x, current_pos.x)
+        min_p.y = math.min(min_p.y, current_pos.y)
+        min_p.z = math.min(min_p.z, current_pos.z)
+        max_p.x = math.max(max_p.x, current_pos.x)
+        max_p.y = math.max(max_p.y, current_pos.y)
+        max_p.z = math.max(max_p.z, current_pos.z)
+
+        -- 6 Nachbarn prüfen
+        for _, dir in ipairs({{x=1,y=0,z=0}, {x=-1,y=0,z=0}, {x=0,y=1,z=0}, {x=0,y=-1,z=0}, {x=0,y=0,z=1}, {x=0,y=0,z=-1}}) do
+            local next_pos = vector.add(current_pos, dir)
+            local pos_str = pos_to_string(next_pos)
+
+            if not visited[pos_str] then
+                local node = minetest.get_node(next_pos)
+                if is_tank_part(node.name) then
+                    visited[pos_str] = true
+                    table.insert(queue, next_pos)
+                end
             end
         end
     end
 
-    -- Plausibilitätsprüfung der Größe (z.B. Mindestens 3x3x3 außen)
+    -- Plausibilitätsprüfung der Größe
     local size_x = (max_p.x - min_p.x) + 1
     local size_y = (max_p.y - min_p.y) + 1
     local size_z = (max_p.z - min_p.z) + 1
@@ -62,32 +81,29 @@ function tank.check_and_calculate_tank(controller_pos)
                 local current_pos = {x = x, y = y, z = z}
                 local node = minetest.get_node(current_pos)
 
-                -- Bestimmen, wo wir uns im Würfel befinden
                 local is_edge_x = (x == min_p.x or x == max_p.x)
                 local is_edge_y = (y == min_p.y or y == max_p.y)
                 local is_edge_z = (z == min_p.z or z == max_p.z)
 
-                -- 1. Fall: Es ist eine der 8 Ecken des Würfels (Schnittpunkt aller 3 Außenkanten)
+                -- 1. Fall: Ecken
                 if is_edge_x and is_edge_y and is_edge_z then
                     if node.name ~= "mytank:wall" then
                         valid_structure = false
                         break
                     end
 
-                -- 2. Fall: Es ist das Innere des Tanks (Keine Außenkante)
+                -- 2. Fall: Inneres
                 elseif not is_edge_x and not is_edge_y and not is_edge_z then
                     if node.name == "air" then
                         table.insert(air_blocks, current_pos)
                     else
-                        -- Innenraum ist nicht hohl!
                         valid_structure = false
                         break
                     end
 
-                -- 3. Fall: Es ist eine Seitenfläche oder Kante
+                -- 3. Fall: Wände/Kanten
                 else
                     if not is_tank_part(node.name) then
-                        -- Loch in der Wand oder falscher Block
                         valid_structure = false
                         break
                     end
@@ -110,7 +126,7 @@ function tank.check_and_calculate_tank(controller_pos)
             minetest.swap_node(controller_pos, {name = "mytank:controller_active", param1 = current_node.param1, param2 = current_node.param2})
         end
 
-        tank.update_formspec(controller_pos)
+        tank.show_formspec(controller_pos, nil)
         tank.update_visuals(controller_pos, air_blocks)
         return true, air_blocks
     else
@@ -130,12 +146,79 @@ function tank.set_tank_invalid(pos, current_node)
         minetest.swap_node(pos, {name = "mytank:controller", param1 = current_node.param1, param2 = current_node.param2})
     end
 
-    tank.update_formspec(pos)
+    tank.show_formspec(pos, nil)
     tank.update_visuals(pos, nil)
 end
 
 -- =======================================================================
--- 2. CONTROLLER, BLÖCKE & RECHTSKLICK
+-- 2. DYNAMISCHE FORMSPEC (GUI) STEUERUNG
+-- =======================================================================
+
+function tank.show_formspec(pos, player_name)
+    local meta = minetest.get_meta(pos)
+    local fluid = meta:get_string("fluid")
+    if fluid == "" then fluid = "Keine" end
+    local amount = meta:get_int("amount")
+    local capacity = meta:get_int("capacity")
+    local block_size = meta:get_int("block_size")
+
+    local status = "STATUS: UNGUELTIG"
+    if capacity > 0 then status = "STATUS: BEREIT (AKTIV)" end
+
+    local formspec = "size[8,5]" ..
+        "label[0.5,0.5;--- " .. status .. " ---]" ..
+        "label[0.5,1.5;Gespeicherte Flussigkeit: " .. fluid .. "]" ..
+        "label[0.5,2.0;Inhalt: " .. amount .. " mb / " .. capacity .. " mb]" ..
+        "label[0.5,2.5;Hohlraum-Grose: " .. block_size .. " Blocke]" ..
+        "box[0.5,3.5;7,0.5;#333333]"
+
+    if capacity > 0 then
+        -- Wenn aktiv: Zeige Füllbalken und einen "Neu messen" Button oben rechts
+        local bar_width = (amount / capacity) * 7
+        formspec = formspec .. "box[0.5,3.5;" .. bar_width .. ",0.5;#00d4ff]" ..
+                              "button[5.2,1.4;2.3,0.5;btn_connect;Neu messen]"
+    else
+        -- Wenn inaktiv: Zeige den großen Connect-Button im unteren Bereich
+        formspec = formspec .. "button[2.5,3.4;3,0.7;btn_connect;Connect Tank]"
+    end
+
+    formspec = formspec .. "button_exit[3,4.3;2,0.5;close;Schliesen]"
+
+    -- Speichere es trotzdem in den Metadaten ab (Fallbacks)
+    meta:set_string("formspec", formspec)
+
+    -- Wenn ein Spieler übergeben wurde, erzwinge das Öffnen der GUI live
+    if player_name then
+        local formname = "mytank:controller_" .. pos.x .. "_" .. pos.y .. "_" .. pos.z
+        minetest.show_formspec(player_name, formname, formspec)
+    end
+end
+
+-- Registrierung des globalen Klick-Empfängers für die Knöpfe
+minetest.register_on_player_receive_fields(function(player, formname, fields)
+    -- Prüfen, ob das geöffnete Formspec von unserem Controller stammt (Koordinaten auslesen)
+    local x, y, z = formname:match("^mytank:controller_([%-%d]+)_([%-%d]+)_([%-%d]+)$")
+    if x and y and z then
+        local pos = {x = tonumber(x), y = tonumber(y), z = tonumber(z)}
+        local player_name = player:get_player_name()
+
+        -- Wenn der "Connect / Neu messen" Button gedrückt wurde
+        if fields.btn_connect then
+            local success = tank.check_and_calculate_tank(pos)
+            if success then
+                minetest.chat_send_player(player_name, "[Tank] Struktur erfolgreich aufgebaut und verbunden!")
+            else
+                minetest.chat_send_player(player_name, "[Tank] Fehler: Ungültige Struktur (Mind. 3x3x3, geschlossene Wände, innen Luft).")
+            end
+            -- GUI SOFORT AKTUALISIEREN (Live-Update auf dem Bildschirm!)
+            tank.show_formspec(pos, player_name)
+        end
+        return true
+    end
+end)
+
+-- =======================================================================
+-- 3. CONTROLLER & BLÖCKE REGISTRIERUNG
 -- =======================================================================
 
 minetest.register_node("mytank:controller", {
@@ -148,10 +231,12 @@ minetest.register_node("mytank:controller", {
         meta:set_int("amount", 0)
         meta:set_int("capacity", 0)
         meta:set_int("block_size", 0)
-        tank.update_formspec(pos)
+        tank.show_formspec(pos, nil)
     end,
     on_rightclick = function(pos, node, clicker, itemstack, pointed_thing)
-        tank.check_and_calculate_tank(pos)
+        if clicker and clicker:is_player() then
+            tank.show_formspec(pos, clicker:get_player_name())
+        end
     end,
     on_destruct = function(pos) tank.update_visuals(pos, nil) end
 })
@@ -162,7 +247,9 @@ minetest.register_node("mytank:controller_active", {
     light_source = 8,
     groups = {cracky = 2, not_in_creative_inventory = 1},
     on_rightclick = function(pos, node, clicker, itemstack, pointed_thing)
-        tank.check_and_calculate_tank(pos)
+        if clicker and clicker:is_player() then
+            tank.show_formspec(pos, clicker:get_player_name())
+        end
     end,
     on_destruct = function(pos) tank.update_visuals(pos, nil) end
 })
@@ -181,7 +268,7 @@ minetest.register_node("mytank:inlet", { description = "Tank Einlass", tiles = {
 minetest.register_node("mytank:outlet", { description = "Tank Auslass", tiles = {"mytank_outlet.png"}, groups = {cracky = 3} })
 
 -- =======================================================================
--- 3. ENTITY FÜR VISUELLE FLÜSSIGKEIT (Unverändert, aber nutzt optimierte Box)
+-- 4. ENTITY FÜR VISUELLE FLÜSSIGKEIT
 -- =======================================================================
 
 minetest.register_entity("mytank:fluid_display", {
@@ -266,35 +353,8 @@ function tank.update_visuals(controller_pos, air_blocks)
 end
 
 -- =======================================================================
--- 4. FORMSPEC & LOGIK
+-- 5. LOGIK FÜR EXTERNE PIPES / SYSTEME
 -- =======================================================================
-
-function tank.update_formspec(pos)
-    local meta = minetest.get_meta(pos)
-    local fluid = meta:get_string("fluid")
-    if fluid == "" then fluid = "Keine" end
-    local amount = meta:get_int("amount")
-    local capacity = meta:get_int("capacity")
-    local block_size = meta:get_int("block_size")
-
-    local status = "STATUS: UNGUELTIG"
-    if capacity > 0 then status = "STATUS: BEREIT (AKTIV)" end
-
-    local formspec = "size[8,5]" ..
-        "label[0.5,0.5;--- " .. status .. " ---]" ..
-        "label[0.5,1.5;Gespeicherte Flussigkeit: " .. fluid .. "]" ..
-        "label[0.5,2.0;Inhalt: " .. amount .. " mb / " .. capacity .. " mb]" ..
-        "label[0.5,2.5;Hohlraum-Grose: " .. block_size .. " Blocke]" ..
-        "box[0.5,3.5;7,0.5;#333333]"
-
-    if capacity > 0 then
-        local bar_width = (amount / capacity) * 7
-        formspec = formspec .. "box[0.5,3.5;" .. bar_width .. ",0.5;#00d4ff]"
-    end
-
-    formspec = formspec .. "button_exit[3,4.2;2,0.5;close;Schliesen]"
-    meta:set_string("formspec", formspec)
-end
 
 function tank.insert_fluid(controller_pos, fluid_name, amount)
     local success, air_blocks = tank.check_and_calculate_tank(controller_pos)
@@ -313,7 +373,7 @@ function tank.insert_fluid(controller_pos, fluid_name, amount)
     if to_add > 0 then
         meta:set_string("fluid", fluid_name)
         meta:set_int("amount", current_amount + to_add)
-        tank.update_formspec(controller_pos)
+        tank.show_formspec(controller_pos, nil)
         tank.update_visuals(controller_pos, air_blocks)
         return to_add
     end
