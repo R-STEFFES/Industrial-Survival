@@ -63,13 +63,13 @@ local densities = {
 -- 2. VERARBEITUNGS-ITEMS REGISTRIEREN (Lump, Ingot, Nugget, Powder)
 -------------------------------------------------------------------------------
 for _, elem in ipairs(elements) do
-    -- Nugget (Winziges Bruchstück)
+    -- Nugget
     minetest.register_craftitem("sti_core:nugget_" .. elem.name, {
         description = elem.desc .. "-Nugget",
         inventory_image = "sti_core_nugget.png^[multiply:" .. elem.color,
     })
 
-    -- Powder (Zerstossenes Erz / Pulver für Alchemie/Chemie/Schmelzen)
+    -- Powder
     minetest.register_craftitem("sti_core:powder_" .. elem.name, {
         description = elem.desc .. "-Pulver",
         inventory_image = "sti_core_powder.png^[multiply:" .. elem.color,
@@ -97,9 +97,8 @@ for _, elem in ipairs(elements) do
     })
 
     ---------------------------------------------------------------------------
-    -- CRAFTING REZEPTE (Nugget <-> Lump <-> Ingot)
+    -- CRAFTING REZEPTE
     ---------------------------------------------------------------------------
-    -- 9 Nuggets = 1 Lump
     minetest.register_craft({
         output = "sti_core:lump_" .. elem.name,
         recipe = {
@@ -108,14 +107,25 @@ for _, elem in ipairs(elements) do
             {"sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name},
         }
     })
-    -- 1 Lump = 9 Nuggets
+
     minetest.register_craft({
         output = "sti_core:nugget_" .. elem.name .. " 9",
         recipe = {{"sti_core:lump_" .. elem.name}}
     })
-    -- Schmelzen: Pulver oder Klumpen zu Barren
-    minetest.register_craft({type = "cooking", output = "sti_core:ingot_"..elem.name, recipe = "sti_core:lump_"..elem.name, cooktime = 5})
-    minetest.register_craft({type = "cooking", output = "sti_core:ingot_"..elem.name, recipe = "sti_core:powder_"..elem.name, cooktime = 4}) -- Pulver schmilzt schneller!
+
+    minetest.register_craft({
+        type = "cooking",
+        output = "sti_core:ingot_" .. elem.name,
+        recipe = "sti_core:lump_" .. elem.name,
+        cooktime = 5
+    })
+
+    minetest.register_craft({
+        type = "cooking",
+        output = "sti_core:ingot_" .. elem.name,
+        recipe = "sti_core:powder_" .. elem.name,
+        cooktime = 4
+    })
 end
 
 -------------------------------------------------------------------------------
@@ -123,7 +133,6 @@ end
 -------------------------------------------------------------------------------
 for _, mat in ipairs(base_materials) do
 
-    -- Sounds festlegen je nach Typ (Festgestein vs. Erde/Sand)
     local mat_sounds = default.node_sound_stone_defaults()
     if mat.type == "dirt" then
         mat_sounds = default.node_sound_dirt_defaults()
@@ -144,15 +153,17 @@ for _, mat in ipairs(base_materials) do
             local node_name = "sti_core:" .. mat.name .. "_with_" .. elem.name .. "_" .. d_data.suffix
             local node_desc = mat.desc .. " mit " .. elem.desc .. " (" .. d_data.desc .. ")"
 
-            -- Dynamische Textur-Überlagerung: Basis-Textur + Erz-Overlay + Farb-Multiplikator
-            local final_texture = mat.texture .. "^" .. d_data.texture .. "^[multiply:" .. elem.color
+            -- ULTIMATIVE LÖSUNG: [combine zwingt Luanti, eine neue Leinwand (16x16 Pixel) zu erstellen.
+            -- Erst wird das Basis-Material bei Position 0,0 gezeichnet.
+            -- Dann wird das Erz-Template bei Position 0,0 darübergezeichnet – ABER modifiziert mit dem multiply-Filter.
+            -- Da der Filter hinter dem Doppelpunkt des zweiten Bildes steht, bleibt er dort gefangen!
+            local final_texture = "[combine:16x16:0,0=" .. mat.texture .. ":0,0=" .. d_data.texture .. "^[multiply:" .. elem.color
 
             minetest.register_node(node_name, {
                 description = node_desc,
                 tiles = {final_texture},
-                groups = mat.group, -- Übernimmt Härte des Ursprungsblocks
+                groups = mat.group,
                 sounds = mat_sounds,
-                -- Je höher die Dichte, desto mehr Nuggets oder Klumpen droppen
                 drop = {
                     max_items = d_data.yield,
                     items = {
