@@ -1,6 +1,6 @@
 -- hunger.lua
 local HUNGER_MAX = 20
-local HUNGER_TICK_RATE = 10.0 -- Alle 10 Sekunden wird geprüft
+local HUNGER_TICK_RATE = 75.0 -- Alle 10 Sekunden wird geprüft
 local hunger_timer = 0
 
 -- Hilfsfunktion um Hunger zu setzen und HUD zu updaten

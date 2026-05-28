@@ -1,11 +1,11 @@
 -- =========================================================================
--- Custom HUD Mod für Luanti (Survival Pack) - All in One (Mit 3D-Armor)
+-- Custom HUD Mod für Luanti (Survival Pack) - All in One (v3)
 -- =========================================================================
 
 survival_hud_data = {} -- Globale Tabelle für alle HUD-IDs
 local player_states = {} -- Tabelle für Sprint- und Ausdauer-Logik
 
--- Setzt die 3D-Armor Einstellung im Code auf Fehl, damit deren eigenes HUD nicht lädt
+-- Setzt die 3D-Armor Einstellung im Code auf False, damit deren eigenes HUD nicht lädt
 if minetest.settings then
     minetest.settings:set_bool("armor_hud", false)
 end
@@ -47,7 +47,7 @@ minetest.register_on_joinplayer(function(player)
     add_hud_element(player, "armor", {
         hud_elem_type = "statbar", position = {x = 0.5, y = 1},
         text = "armor_full.png", background = "armor_empty.png",
-        number = 0, max = 20, -- Startet bei 0 ohne Rüstung
+        number = 0, max = 20,
         offset = {x = -half_hotbar, y = -110}, size = {x = 16, y = 16}, alignment = {x = 1, y = 1},
     })
 
@@ -86,6 +86,16 @@ minetest.register_on_joinplayer(function(player)
         text = "bar_oxygen.png", background = "bar_background.png",
         number = 10, max = 10,
         offset = {x = -half_hotbar, y = -150}, size = {x = 76, y = 10}, alignment = {x = 1, y = 0},
+    })
+
+    -- NEU: Biom Textanzeige (Über der Sauerstoffleiste bei y = -165)
+    add_hud_element(player, "biome_text", {
+        hud_elem_type = "text", position = {x = 0.5, y = 1},
+        offset = {x = -half_hotbar, y = -165},
+        text = "Biom: Laden...",
+        number = 0xFFFFFF, -- Weiße Schriftfarbe
+        alignment = {x = 1, y = 0}, -- Linksbündig am Hotbar-Rand ausgerichtet
+        scale = {x = 100, y = 20},
     })
 
     -- Initiale Werte laden
@@ -156,67 +166,84 @@ end)
 
 
 -- =========================================================================
--- 4. GLOBALE UPDATES (SAUERSTOFF, TRINKEN, RÜSTUNG, SPRINTEN, HUNGER, TEMP)
+-- 4. GLOBALE UPDATES (SAUERSTOFF, TRINKEN, RÜSTUNG, SPRINTEN, BIOM)
 -- =========================================================================
 local timer_fast = 0
 local timer_slow = 0
+local timer_temp = 0 -- Separater Timer für flüssigere Temperaturwechsel
 
 minetest.register_globalstep(function(dtime)
     timer_fast = timer_fast + dtime
     timer_slow = timer_slow + dtime
+    timer_temp = timer_temp + dtime
 
     -- ==========================================
-    -- Schnelle Updates (Läuft jeden Frame / 0.5s)
+    -- Schnelle Updates (Läuft alle 0.5s)
     -- ==========================================
     for _, player in ipairs(minetest.get_connected_players()) do
         local name = player:get_player_name()
         local controls = player:get_player_control()
+        local pos = player:get_pos()
 
         if timer_fast >= 0.5 and survival_hud_data[name] then
-            -- SAUERSTOFF
-            local breath = player:get_breath()
-            if breath > 10 then breath = 10 end
-            if breath < 0 then breath = 0 end
-            player:hud_change(survival_hud_data[name]["oxygen_bar"], "number", breath)
+            local hotbar_width = 360
+            local half_hotbar = hotbar_width / 2
 
-            -- RÜSTUNG (3D Armor API Integration)
+            -- DYNAMISCHER SAUERSTOFF (Blendet sich aus, wenn voll)
+            local breath = player:get_breath()
+            if breath >= 11 then
+                -- Schiebt die Leiste weit aus dem sichtbaren Bildschirmbereich
+                player:hud_change(survival_hud_data[name]["oxygen_bar"], "offset", {x = -half_hotbar, y = 10000})
+            else
+                -- Blendet die Leiste an der richtigen Position ein
+                player:hud_change(survival_hud_data[name]["oxygen_bar"], "offset", {x = -half_hotbar, y = -150})
+                local display_breath = breath
+                if display_breath > 10 then display_breath = 10 end
+                if display_breath < 0 then display_breath = 0 end
+                player:hud_change(survival_hud_data[name]["oxygen_bar"], "number", display_breath)
+            end
+
+            -- DYNAMISCHE BIOM-ANZEIGE
+            local biome_data = minetest.get_biome_data(pos)
+            local display_biome_name = "Unbekannt"
+            if biome_data and biome_data.biome then
+                local raw_name = minetest.get_biome_name(biome_data.biome) or "Unbekannt"
+                -- Schneidet das "default:" ab (z.B. "default:savanna" -> "savanna")
+                local clean_name = raw_name:match(":(.+)") or raw_name
+                -- Macht den ersten Buchstaben groß ("savanna" -> "Savanna") und ersetzt Unterstriche
+                display_biome_name = clean_name:sub(1,1):upper() .. clean_name:sub(2):gsub("_", " ")
+            end
+            player:hud_change(survival_hud_data[name]["biome_text"], "text", "Biom: " .. display_biome_name)
+
+            -- RÜSTUNG (3D Armor API)
             if armor and armor.def and armor.def[name] then
                 local armor_level = armor.def[name].level or 0
-                -- Umrechnung von 0-100% auf deine 20 HUD-Punkte
                 local armor_hud_val = math.floor(armor_level / 5)
                 if armor_hud_val > 20 then armor_hud_val = 20 end
-
                 player:hud_change(survival_hud_data[name]["armor"], "number", armor_hud_val)
             else
                 player:hud_change(survival_hud_data[name]["armor"], "number", 0)
             end
 
             -- TRINKEN (IM WASSER + SNEAK)
-            local pos = player:get_pos()
             local node_feet = minetest.get_node({x = pos.x, y = pos.y + 0.1, z = pos.z}).name
             local node_head = minetest.get_node({x = pos.x, y = pos.y + 1.5, z = pos.z}).name
-
             local in_water = string.find(node_feet, "water") or string.find(node_head, "water")
 
             if in_water and controls.sneak then
                 local meta = player:get_meta()
                 local thirst = meta:get_int("survival_thirst")
-
                 if thirst < 20 then
                     thirst = thirst + 2
                     if thirst > 20 then thirst = 20 end
-
                     meta:set_int("survival_thirst", thirst)
                     player:hud_change(survival_hud_data[name]["thirst"], "number", thirst)
-
-                    minetest.sound_play("default_water_footstep", {
-                        to_player = name, gain = 0.5
-                    }, true)
+                    minetest.sound_play("default_water_footstep", { to_player = name, gain = 0.5 }, true)
                 end
             end
         end
 
-        -- AUSDAUER & SPRINTEN
+        -- AUSDAUER & SPRINTEN (Jeden Frame)
         local state = player_states[name]
         if state then
             local current_time = minetest.get_us_time() / 1000000
@@ -261,6 +288,60 @@ minetest.register_globalstep(function(dtime)
     if timer_fast >= 0.5 then timer_fast = 0 end
 
     -- ==========================================
+    -- Mittelschnelle Updates (Alle 2 Sekunden für Temperatur)
+    -- ==========================================
+    if timer_temp >= 2.0 then
+        timer_temp = 0
+        for _, player in ipairs(minetest.get_connected_players()) do
+            local name = player:get_player_name()
+            local meta = player:get_meta()
+            local pos = player:get_pos()
+
+            if survival_hud_data[name] then
+                local temp = meta:get_float("survival_temp")
+
+                -- Echte Biom-Hitze auslesen (0 bis 100)
+                local biome_data = minetest.get_biome_data(pos)
+                local b_heat = 50 -- Standardwert falls nil
+                if biome_data and biome_data.heat then b_heat = biome_data.heat end
+
+                -- Höhen-Abkühlung (Ab Höhe 30 wird es kälter)
+                if pos.y > 30 then
+                    b_heat = b_heat - (pos.y - 30) * 0.25
+                end
+
+                -- Lava/Feuer Check in der Nähe
+                local heat_nodes = minetest.find_nodes_in_area(
+                    {x = pos.x - 3, y = pos.y - 3, z = pos.z - 3},
+                    {x = pos.x + 3, y = pos.y + 3, z = pos.z + 3},
+                    {"default:lava_source", "default:lava_flowing", "fire:basic_flame"}
+                )
+                if #heat_nodes > 0 then b_heat = 100 end -- Sofort maximale Hitze
+
+                -- Berechne den genauen Zielwert für dein HUD (Wertebereich 0 bis 20)
+                local target_temp = math.floor(b_heat / 5)
+                if target_temp > 20 then target_temp = 20 end
+                if target_temp < 0 then target_temp = 0 end
+
+                -- Die Körpertemperatur nähert sich schrittweise dem Zielwert an
+                if temp < target_temp then
+                    temp = temp + 1
+                elseif temp > target_temp then
+                    temp = temp - 1
+                end
+
+                meta:set_float("survival_temp", temp)
+                player:hud_change(survival_hud_data[name]["temp_bar"], "number", temp)
+
+                -- Schaden bei extremer Hitze oder Kälte
+                if temp >= 20 or temp <= 0 then
+                    player:set_hp(player:get_hp() - 1)
+                end
+            end
+        end
+    end
+
+    -- ==========================================
     -- Langsame Updates (Alle 10 Sekunden)
     -- ==========================================
     if timer_slow >= 10.0 then
@@ -268,7 +349,6 @@ minetest.register_globalstep(function(dtime)
         for _, player in ipairs(minetest.get_connected_players()) do
             local name = player:get_player_name()
             local meta = player:get_meta()
-            local pos = player:get_pos()
 
             -- HUNGER
             local hunger = meta:get_int("survival_hunger")
@@ -292,32 +372,6 @@ minetest.register_globalstep(function(dtime)
                 end
             else
                 player:set_hp(player:get_hp() - 1)
-            end
-
-            -- TEMPERATUR
-            local temp = meta:get_float("survival_temp")
-            local env_mod = 0
-
-            local heat_nodes = minetest.find_nodes_in_area(
-                {x = pos.x - 3, y = pos.y - 3, z = pos.z - 3},
-                {x = pos.x + 3, y = pos.y + 3, z = pos.z + 3},
-                {"default:lava_source", "default:lava_flowing", "fire:basic_flame"}
-            )
-
-            if pos.y > 50 then env_mod = -1
-            elseif #heat_nodes > 0 then env_mod = 2
-            else
-                if temp < 10 then env_mod = 1 end
-                if temp > 10 then env_mod = -1 end
-            end
-
-            temp = temp + env_mod
-            if temp > 20 then temp = 20 end
-            if temp < 0 then temp = 0 end
-
-            meta:set_float("survival_temp", temp)
-            if survival_hud_data[name] then
-                player:hud_change(survival_hud_data[name]["temp_bar"], "number", math.floor(temp))
             end
         end
     end
