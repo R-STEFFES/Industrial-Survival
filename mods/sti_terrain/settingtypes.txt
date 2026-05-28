@@ -1,1 +1,5 @@
 mg_name (Mapgen-Name) string singlenode
+
+sti_terrain_scale (Berghöhen-Skalierung (1-10)) float 1.0 0.1 10.0
+sti_terrain_continent_size (Kontinent-Größe) int 8000 1000 30000
+sti_terrain_river_depth (Flusstal-Tiefe) float 1.0 0.0 3.0

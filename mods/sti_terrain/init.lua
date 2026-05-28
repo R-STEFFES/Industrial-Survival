@@ -1,101 +1,192 @@
--- Wir definieren die IDs als lokale Variablen, weisen sie aber erst später zu
-local c_stone, c_water, c_air
+-- 1. MENÜ-EINSTELLUNGEN AUSLESEN (mit Fallback-Werten)
+local map_scale      = tonumber(minetest.settings:get("sti_terrain_scale")) or 1.0
+local continent_size = tonumber(minetest.settings:get("sti_terrain_continent_size")) or 8000
+local river_depth_mod = tonumber(minetest.settings:get("sti_terrain_river_depth")) or 1.0
+
+-- 2. IDs UND CONFIGS
+local c_air, c_water, c_stone
 local ids_initialized = false
 
--- 1. RAUSCH-PARAMETER
-local np_continents = {
-    offset = -0.1,
-    scale = 1.2,
-    spread = {x = 8000, y = 8000, z = 8000},
-    seed = 42069,
-    octaves = 5,
-    persist = 0.5,
-    lacunarity = 2.2,
+local biomes = {
+    -- 🏔️ ALPINE BIOME (Hohe Berge)
+    { name = "Gletscher", min_height = 450, max_height = 1000, min_temp = -2, max_temp = 0.2, min_humid = -1, max_humid = 1, top_node = "default:snowblock", filler_node = "default:ice", depth = 4 },
+    { name = "Alpines Hochland", min_height = 300, max_height = 450, min_temp = -1, max_temp = 0.5, min_humid = -1, max_humid = 1, top_node = "default:dirt_with_snow", filler_node = "default:dirt", depth = 3 },
+    -- 🌋 VULKAN
+    { name = "Vulkanisches Ödland", min_height = 250, max_height = 800, min_temp = 0.8, max_temp = 2.0, min_humid = -1, max_humid = -0.4, top_node = "default:gravel", filler_node = "default:desert_stone", depth = 5 },
+    -- 🌲 GEMÄSSIGTE BIOME
+    { name = "Nadelwald", min_height = 5, max_height = 300, min_temp = 0.0, max_temp = 0.5, min_humid = 0.2, max_humid = 1, top_node = "default:dirt_with_coniferous_litter", filler_node = "default:dirt", depth = 4 },
+    { name = "Grüne Wiese / Felder", min_height = 3, max_height = 120, min_temp = 0.3, max_temp = 0.8, min_humid = -0.2, max_humid = 0.4, top_node = "default:dirt_with_grass", filler_node = "default:dirt", depth = 3 },
+    -- ⏳ TROCKENE BIOME
+    { name = "Wüste", min_height = 2, max_height = 150, min_temp = 0.7, max_temp = 2.0, min_humid = -1, max_humid = -0.3, top_node = "default:desert_sand", filler_node = "default:desert_stone", depth = 6 },
+    -- 🏖️ KÜSTEN
+    { name = "Sandstrand", min_height = -1, max_height = 3, min_temp = 0.2, max_temp = 1.5, min_humid = -1, max_humid = 1, top_node = "default:sand", filler_node = "default:sand", depth = 4 },
 }
 
-local np_ridges = {
-    offset = 0,
-    scale = 1,
-    spread = {x = 1200, y = 1200, z = 1200},
-    seed = 71113,
-    octaves = 6,
-    persist = 0.45,
-    lacunarity = 2.14,
-}
+-- Noise-Parameter nutzen jetzt die Werte aus dem Menü
+local np_continents = { offset = -0.1, scale = 1.2, spread = {x = continent_size, y = continent_size, z = continent_size}, seed = 42069, octaves = 5, persist = 0.5, lacunarity = 2.2 }
+local np_ridges     = { offset = 0, scale = 1, spread = {x = 1200, y = 1200, z = 1200}, seed = 71113, octaves = 6, persist = 0.45, lacunarity = 2.14 }
+local np_temp       = { offset = 0.4, scale = 0.6, spread = {x = 10000, y = 10000, z = 10000}, seed = 12345, octaves = 3, persist = 0.5, lacunarity = 2.0 }
+local np_humidity   = { offset = 0, scale = 1, spread = {x = 6000, y = 6000, z = 6000}, seed = 54321, octaves = 3, persist = 0.5, lacunarity = 2.0 }
+local np_rivers     = { offset = 0, scale = 1, spread = {x = 800, y = 800, z = 800}, seed = 9876, octaves = 4, persist = 0.5, lacunarity = 2.0 }
 
--- 2. DER GENERATOR
+-- Platzhalter für die Noise-Objekte (Lokale Upvalues)
+local perlin_continents, perlin_ridges, perlin_rivers
+
+local function get_biome(height, temp, humid)
+    for _, b in ipairs(biomes) do
+        if height >= b.min_height and height <= b.max_height and temp >= b.min_temp and temp <= b.max_temp and humid >= b.min_humid and humid <= b.max_humid then
+            return b
+        end
+    end
+    return biomes[5] -- Fallback: Grüne Wiese
+end
+
+-- Hilfsfunktion zur Höhenberechnung für eine einzelne Koordinate (Wichtig für den Spawn-Finder)
+local function get_terrain_height(x, z)
+    -- FEHLERBEHEBUNG: Noise-Objekte erst hier initialisieren, wenn die Engine bereit ist (verhindert nil-Fehler)
+    if not perlin_continents then
+        perlin_continents = minetest.get_perlin(np_continents)
+        perlin_ridges     = minetest.get_perlin(np_ridges)
+        perlin_rivers     = minetest.get_perlin(np_rivers)
+    end
+
+    local cont_val   = perlin_continents:get_2d({x = x, y = z})
+    local ridge_val  = perlin_ridges:get_2d({x = x, y = z})
+    local river_val  = perlin_rivers:get_2d({x = x, y = z})
+
+    local sharp_ridge = (1.0 - math.abs(ridge_val)) ^ 2
+    local target_height = 0
+
+    if cont_val > 0 then
+        -- Multipliziert mit dem Scale-Regler aus dem Menü (Standard 600)
+        local max_regional_height = cont_val * (600 * map_scale)
+        target_height = sharp_ridge * max_regional_height + (cont_val * 15)
+
+        local river_threshold = math.abs(river_val)
+        if river_threshold < 0.04 and target_height < 150 then
+            local river_depth = ((0.04 - river_threshold) / 0.04) * river_depth_mod
+            target_height = target_height * (1.0 - river_depth) - (river_depth * 4)
+        end
+    else
+        target_height = cont_val * 120
+    end
+    return math.floor(target_height) -- Direkt als gerundete Ganzzahl zurückgeben
+end
+
+-- 3. DER GENERATOR
 minetest.register_on_generated(function(minp, maxp, blockseed)
-
-    -- IDs einmalig initialisieren, wenn der erste Chunk generiert wird
     if not ids_initialized then
-        c_stone = minetest.get_content_id("mapgen_stone")
-        if c_stone == minetest.CONTENT_IGNORE or c_stone == minetest.CONTENT_UNKNOWN then
-            c_stone = minetest.get_content_id("default:stone")
+        c_stone = minetest.get_content_id("default:stone")
+        for _, b in ipairs(biomes) do
+            b.c_top = minetest.get_content_id(b.top_node)
+            b.c_filler = minetest.get_content_id(b.filler_node)
+            if b.c_top == minetest.CONTENT_UNKNOWN then b.c_top = c_stone end
+            if b.c_filler == minetest.CONTENT_UNKNOWN then b.c_filler = c_stone end
         end
-
-        c_water = minetest.get_content_id("mapgen_water_source")
-        if c_water == minetest.CONTENT_IGNORE or c_water == minetest.CONTENT_UNKNOWN then
-            c_water = minetest.get_content_id("default:water_source")
-        end
-
         c_air = minetest.get_content_id("air")
+        c_water = minetest.get_content_id("default:water_source")
         ids_initialized = true
     end
 
-    -- KORREKTUR FÜR SINGLENODE:
-    -- Manuell ein VoxelManip-Objekt für diesen Chunk erzeugen statt es vom Mapgen zu holen
     local vm = minetest.get_voxel_manip()
     local emin, emax = vm:read_from_map(minp, maxp)
-
     local data = vm:get_data()
     local area = VoxelArea:new({MinEdge = emin, MaxEdge = emax})
 
     local sidelen = maxp.x - minp.x + 1
     local chsize = {x = sidelen, y = sidelen, z = sidelen}
+    local chunk_2d = {x = minp.x, y = minp.z}
 
-    local noisemapped_cont = minetest.get_perlin_map(np_continents, chsize):get_2d_map_flat({x = minp.x, y = minp.z})
-    local noisemapped_ridge = minetest.get_perlin_map(np_ridges, chsize):get_2d_map_flat({x = minp.x, y = minp.z})
+    local n_cont   = minetest.get_perlin_map(np_continents, chsize):get_2d_map_flat(chunk_2d)
+    local n_ridge  = minetest.get_perlin_map(np_ridges, chsize):get_2d_map_flat(chunk_2d)
+    local n_temp   = minetest.get_perlin_map(np_temp, chsize):get_2d_map_flat(chunk_2d)
+    local n_humid  = minetest.get_perlin_map(np_humidity, chsize):get_2d_map_flat(chunk_2d)
+    local n_rivers = minetest.get_perlin_map(np_rivers, chsize):get_2d_map_flat(chunk_2d)
 
     local nixz = 1
 
     for z = minp.z, maxp.z do
         for x = minp.x, maxp.x do
+            local cont_val   = n_cont[nixz]
+            local ridge_val  = n_ridge[nixz]
+            local base_temp  = n_temp[nixz]
+            local humid_val  = n_humid[nixz]
+            local river_val  = n_rivers[nixz]
 
-            local cont_val = noisemapped_cont[nixz]
-            local ridge_val = noisemapped_ridge[nixz]
-
-            -- Ridged Multi-Fractal Mathematik
-            local sharp_ridge = 1.0 - math.abs(ridge_val)
-            sharp_ridge = sharp_ridge * sharp_ridge
-
+            local sharp_ridge = (1.0 - math.abs(ridge_val)) ^ 2
             local target_height = 0
 
             if cont_val > 0 then
-                local max_regional_height = cont_val * 600
+                local max_regional_height = cont_val * (600 * map_scale)
                 target_height = sharp_ridge * max_regional_height + (cont_val * 15)
+
+                local river_threshold = math.abs(river_val)
+                if river_threshold < 0.04 and target_height < 150 then
+                    local river_depth = ((0.04 - river_threshold) / 0.04) * river_depth_mod
+                    target_height = target_height * (1.0 - river_depth) - (river_depth * 4)
+                end
             else
                 target_height = cont_val * 120
             end
 
+            -- Landschaftshöhe in Ganzzahl umwandeln (Löst das "Kein-Gras-Problem")
+            local surface_y = math.floor(target_height)
+
+            local actual_temp = base_temp - (surface_y * 0.003)
+            local biome = get_biome(surface_y, actual_temp, humid_val)
+
             for y = minp.y, maxp.y do
                 local vi = area:index(x, y, z)
-
-                if y <= target_height then
-                    data[vi] = c_stone
+                if y <= surface_y then
+                    local depth = surface_y - y
+                    if depth == 0 then
+                        data[vi] = biome.c_top       -- Oberflächenblock
+                    elseif depth <= biome.depth then
+                        data[vi] = biome.c_filler    -- Trägerschicht
+                    else
+                        data[vi] = c_stone           -- Solider Stein (Gecached!)
+                    end
                 elseif y <= 0 then
-                    data[vi] = c_water
+                    data[vi] = c_water               -- Meerwasser
                 else
-                    data[vi] = c_air
+                    data[vi] = c_air                 -- Luft
                 end
             end
-
             nixz = nixz + 1
         end
     end
 
-    -- Daten manuell in den Map-Speicher zurückschreiben
     vm:set_data(data)
     vm:calc_lighting()
     vm:update_liquids()
     vm:write_to_map()
+end)
+
+-- --- 🚪 INTELLIGENTES SPAWN-SYSTEM ---
+minetest.register_on_newplayer(function(player)
+    local x, z = 0, 0
+    local attempts = 0
+    local max_attempts = 100
+    local step = 80 -- Wie weit wir pro Schritt springen, um Land zu suchen
+
+    minetest.log("action", "[sti_terrain] Suche sicheren Spawnpoint auf dem Festland...")
+
+    while attempts < max_attempts do
+        local height = get_terrain_height(x, z)
+
+        -- Wenn die Höhe über 3 ist (also kein Tiefseegraben oder Strand direkt am Wasser)
+        if height > 3 then
+            player:set_pos({x = x, y = height + 2, z = z})
+            minetest.log("action", "[sti_terrain] Sicherer Spawn gefunden bei X="..x.." Z="..z)
+            return
+        end
+
+        -- Spiralförmige Suche nach Festland erweitern
+        attempts = attempts + 1
+        x = x + math.sin(attempts) * (attempts * step)
+        z = z + math.cos(attempts) * (attempts * step)
+    end
+
+    -- Notfall-Fallback, falls nach 100 Versuchen nur Wasser da ist
+    player:set_pos({x = 0, y = 50, z = 0})
 end)
