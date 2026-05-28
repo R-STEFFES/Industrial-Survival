@@ -23,7 +23,6 @@ end
 minetest.register_on_joinplayer(function(player)
     local name = player:get_player_name()
 
-    -- Deaktiviere das Standard-HUD
     player:hud_set_flags({
         healthbar = false,
         breathbar = false,
@@ -84,7 +83,7 @@ minetest.register_on_joinplayer(function(player)
         offset = {x = -half_hotbar, y = -150}, size = {x = 76, y = 10}, alignment = {x = 1, y = 0},
     })
 
-    -- Initiale Werte für Hunger und Temperatur laden
+    -- Initiale Werte laden
     local meta = player:get_meta()
 
     local current_hunger = meta:get_int("survival_hunger")
@@ -92,18 +91,17 @@ minetest.register_on_joinplayer(function(player)
     player:hud_change(survival_hud_data[name]["hunger"], "number", current_hunger)
     meta:set_int("survival_hunger", current_hunger)
 
+    local current_thirst = meta:get_int("survival_thirst")
+    if current_thirst == 0 and not meta:contains("survival_thirst") then current_thirst = 20 end
+    player:hud_change(survival_hud_data[name]["thirst"], "number", current_thirst)
+    meta:set_int("survival_thirst", current_thirst)
+
     local current_temp = meta:get_float("survival_temp")
     if current_temp == 0 and not meta:contains("survival_temp") then current_temp = 10 end
     player:hud_change(survival_hud_data[name]["temp_bar"], "number", math.floor(current_temp))
     meta:set_float("survival_temp", current_temp)
 
-    -- Spieler-State für Ausdauer initialisieren
-    player_states[name] = {
-        stamina = 20,
-        last_w_press_time = 0,
-        was_w_pressed = false,
-        is_sprinting = false
-    }
+    player_states[name] = { stamina = 20, last_w_press_time = 0, was_w_pressed = false, is_sprinting = false }
 end)
 
 minetest.register_on_leaveplayer(function(player)
@@ -114,11 +112,34 @@ end)
 
 
 -- =========================================================================
--- 2. LEBEN (HEALTH) LOGIK - Direkter Event-Listener (Besser & Genauer)
+-- 2. ESSEN (HUNGER AUFFÜLLEN)
+-- =========================================================================
+minetest.register_on_item_eat(function(hp_change, replace_with_item, itemstack, user, pointed_thing)
+    if user and user:is_player() then
+        local meta = user:get_meta()
+        local hunger = meta:get_int("survival_hunger")
+
+        local hunger_restore = hp_change * 2
+        if hunger_restore <= 0 then hunger_restore = 2 end
+
+        hunger = hunger + hunger_restore
+        if hunger > 20 then hunger = 20 end
+
+        meta:set_int("survival_hunger", hunger)
+        local name = user:get_player_name()
+        if survival_hud_data[name] and survival_hud_data[name]["hunger"] then
+            user:hud_change(survival_hud_data[name]["hunger"], "number", hunger)
+        end
+    end
+    return nil
+end)
+
+
+-- =========================================================================
+-- 3. LEBEN EVENT-LISTENER
 -- =========================================================================
 minetest.register_on_player_hpchange(function(player, hp_change, reason)
     local name = player:get_player_name()
-    -- Kurz warten, bis Minetest den Schaden verrechnet hat
     minetest.after(0, function()
         local p = minetest.get_player_by_name(name)
         if p and survival_hud_data[name] and survival_hud_data[name]["health"] then
@@ -130,34 +151,62 @@ end)
 
 
 -- =========================================================================
--- 3. SAUERSTOFF, HUNGER, AUSDAUER & TEMPERATUR (Globalstep Logik)
+-- 4. GLOBALE UPDATES (SAUERSTOFF, TRINKEN, HUNGER, DURST, AUSDAUER, TEMP)
 -- =========================================================================
-local timer_fast = 0 -- Für Sauerstoff & Ausdauer
-local timer_slow = 0 -- Für Hunger & Temperatur
+local timer_fast = 0
+local timer_slow = 0
 
 minetest.register_globalstep(function(dtime)
     timer_fast = timer_fast + dtime
     timer_slow = timer_slow + dtime
 
-    -- Schnelle Updates (Ausdauer & Sauerstoff) - läuft jeden Frame oder leicht verzögert
+    -- ==========================================
+    -- Schnelle Updates (Läuft jeden Frame / 0.5s)
+    -- ==========================================
     for _, player in ipairs(minetest.get_connected_players()) do
         local name = player:get_player_name()
+        local controls = player:get_player_control()
 
-        -- SAUERSTOFF (Breath)
         if timer_fast >= 0.5 and survival_hud_data[name] then
+            -- SAUERSTOFF
             local breath = player:get_breath()
             if breath > 10 then breath = 10 end
             if breath < 0 then breath = 0 end
             player:hud_change(survival_hud_data[name]["oxygen_bar"], "number", breath)
+
+            -- TRINKEN (IM WASSER + SNEAK)
+            local pos = player:get_pos()
+            -- Lese den Block an den Füßen und am Kopf aus
+            local node_feet = minetest.get_node({x = pos.x, y = pos.y + 0.1, z = pos.z}).name
+            local node_head = minetest.get_node({x = pos.x, y = pos.y + 1.5, z = pos.z}).name
+
+            -- Prüfe, ob "water" im Blocknamen steckt
+            local in_water = string.find(node_feet, "water") or string.find(node_head, "water")
+
+            if in_water and controls.sneak then
+                local meta = player:get_meta()
+                local thirst = meta:get_int("survival_thirst")
+
+                if thirst < 20 then
+                    thirst = thirst + 2 -- Heilt 2 Punkte pro halber Sekunde
+                    if thirst > 20 then thirst = 20 end
+
+                    meta:set_int("survival_thirst", thirst)
+                    player:hud_change(survival_hud_data[name]["thirst"], "number", thirst)
+
+                    -- Plätscher-Geräusch abspielen
+                    minetest.sound_play("default_water_footstep", {
+                        to_player = name, gain = 0.5
+                    }, true)
+                end
+            end
         end
 
         -- AUSDAUER & SPRINTEN
         local state = player_states[name]
         if state then
-            local controls = player:get_player_control()
             local current_time = minetest.get_us_time() / 1000000
 
-            -- Doppel-W Erkennung
             if controls.up and not state.was_w_pressed then
                 if (current_time - state.last_w_press_time) <= 0.3 then
                     if state.stamina > 0 then
@@ -169,7 +218,6 @@ minetest.register_globalstep(function(dtime)
             end
             state.was_w_pressed = controls.up
 
-            -- Sprint abbrechen
             if not controls.up or state.stamina <= 0 then
                 if state.is_sprinting then
                     state.is_sprinting = false
@@ -177,7 +225,6 @@ minetest.register_globalstep(function(dtime)
                 end
             end
 
-            -- Ausdauer berechnen
             local changed = false
             if state.is_sprinting then
                 state.stamina = state.stamina - (dtime * 4)
@@ -199,7 +246,9 @@ minetest.register_globalstep(function(dtime)
 
     if timer_fast >= 0.5 then timer_fast = 0 end
 
-    -- Langsame Updates (Hunger & Temperatur) - läuft alle 10 Sekunden
+    -- ==========================================
+    -- Langsame Updates (Alle 10 Sekunden)
+    -- ==========================================
     if timer_slow >= 10.0 then
         timer_slow = 0
         for _, player in ipairs(minetest.get_connected_players()) do
@@ -216,22 +265,33 @@ minetest.register_globalstep(function(dtime)
                     player:hud_change(survival_hud_data[name]["hunger"], "number", hunger)
                 end
             else
-                player:set_hp(player:get_hp() - 1) -- Schaden wenn verhungert
+                player:set_hp(player:get_hp() - 1)
+            end
+
+            -- DURST
+            local thirst = meta:get_int("survival_thirst")
+            if thirst > 0 then
+                thirst = thirst - 1
+                meta:set_int("survival_thirst", thirst)
+                if survival_hud_data[name] then
+                    player:hud_change(survival_hud_data[name]["thirst"], "number", thirst)
+                end
+            else
+                player:set_hp(player:get_hp() - 1)
             end
 
             -- TEMPERATUR
             local temp = meta:get_float("survival_temp")
             local env_mod = 0
 
-            -- Check für Lava/Feuer (Einfach)
             local heat_nodes = minetest.find_nodes_in_area(
                 {x = pos.x - 3, y = pos.y - 3, z = pos.z - 3},
                 {x = pos.x + 3, y = pos.y + 3, z = pos.z + 3},
                 {"default:lava_source", "default:lava_flowing", "fire:basic_flame"}
             )
 
-            if pos.y > 50 then env_mod = -1 -- Kalt oben
-            elseif #heat_nodes > 0 then env_mod = 2 -- Heiß bei Lava
+            if pos.y > 50 then env_mod = -1
+            elseif #heat_nodes > 0 then env_mod = 2
             else
                 if temp < 10 then env_mod = 1 end
                 if temp > 10 then env_mod = -1 end
