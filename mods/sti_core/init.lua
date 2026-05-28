@@ -2,53 +2,92 @@
 
 sti_core = {}
 
--- Definition der natürlichen Elemente (Name, Beschreibung, Farbe für die Texturierung)
-local elements = {
-    -- Edelmetalle
-    {name = "gold", desc = "Gold", color = "#ffd700", MaxDepth = -31000, MinDepth = -256},
-    {name = "silver", desc = "Silber", color = "#e5e5e5", MaxDepth = -1000, MinDepth = -64},
-    {name = "platinum", desc = "Platin", color = "#e5e4e2", MaxDepth = -31000, MinDepth = -512},
+-------------------------------------------------------------------------------
+-- 1. DATEN-TABELLEN DEFINIEREN
+-------------------------------------------------------------------------------
 
-    -- Basis- / Industriemetalle
-    {name = "iron", desc = "Eisen", color = "#8b4513", MaxDepth = -31000, MinDepth = 64},
-    {name = "copper", desc = "Kupfer", color = "#d2691e", MaxDepth = -2000, MinDepth = -16},
-    {name = "aluminum", desc = "Aluminium", color = "#b2beb5", MaxDepth = -1000, MinDepth = 0},
-    {name = "titanium", desc = "Titan", color = "#708090", MaxDepth = -31000, MinDepth = -1024},
-    {name = "nickel", desc = "Nickel", color = "#aca79e", MaxDepth = -5000, MinDepth = -128},
-    {name = "zinc", desc = "Zink", color = "#bac4c8", MaxDepth = -2000, MinDepth = -64},
-    {name = "lead", desc = "Blei", color = "#4f5d65", MaxDepth = -4000, MinDepth = -32},
-    {name = "tin", desc = "Zinn", color = "#ebebeb", MaxDepth = -2000, MinDepth = 0},
+-- Alle Gesteins- und Bodentypen (Die Trägermedien für Erze)
+local base_materials = {
+    -- Kategorie: Festgestein (cracky)
+    {name = "stone",     desc = "Stein",       type = "stone",  group = {cracky = 3, stone = 1}, texture = "default_stone.png"},
+    {name = "limestone", desc = "Kalkstein",   type = "stone",  group = {cracky = 3, stone = 1}, texture = "sti_core_limestone.png"},
+    {name = "basalt",    desc = "Basalt",      type = "stone",  group = {cracky = 2, stone = 1}, texture = "sti_core_basalt.png"},
+    {name = "granite",   desc = "Granit",      type = "stone",  group = {cracky = 2, stone = 1}, texture = "sti_core_granite.png"},
 
-    -- Seltene Erden / Spezialmetalle
-    {name = "lithium", desc = "Lithium", color = "#e0e0e0", MaxDepth = -1000, MinDepth = -32},
-    {name = "tungsten", desc = "Wolfram", color = "#3d4246", MaxDepth = -31000, MinDepth = -2048},
+    -- Kategorie: Lockergestein / Böden (crumbly)
+    {name = "peat",      desc = "Torf",        type = "dirt",   group = {crumbly = 3},           texture = "sti_core_peat.png"},
+    {name = "gravel_coarse", desc = "Schotter", type = "dirt",   group = {crumbly = 2},           texture = "sti_core_gravel_coarse.png"},
+    {name = "gravel",    desc = "Kies",        type = "dirt",   group = {crumbly = 2},           texture = "default_gravel.png"},
+    {name = "sand",      desc = "Sand",        type = "dirt",   group = {crumbly = 3, sand = 1}, texture = "default_sand.png"},
+    {name = "loamy_sand", desc = "Lehmsand-Gemisch", type = "dirt", group = {crumbly = 3},       texture = "sti_core_loamy_sand.png"},
+    {name = "silt",      desc = "Schluff",     type = "dirt",   group = {crumbly = 3},           texture = "sti_core_silt.png"},
+    {name = "clay",      desc = "Ton",         type = "dirt",   group = {crumbly = 3},           texture = "default_clay.png"},
 
-    -- Nichtmetalle / Halbleiter / Kristalle
-    {name = "sulfur", desc = "Schwefel", color = "#e6e6fa", MaxDepth = -500, MinDepth = 32},
-    {name = "silicon", desc = "Silizium", color = "#555555", MaxDepth = -2000, MinDepth = -64},
-    {name = "carbon", desc = "Kohlenstoff (Graphit)", color = "#222222", MaxDepth = -31000, MinDepth = 128},
-
-    -- Radioaktive Elemente
-    {name = "uranium", desc = "Uran", color = "#39ff14", MaxDepth = -31000, MinDepth = -1024},
-    {name = "thorium", desc = "Thorium", color = "#4a5d4e", MaxDepth = -31000, MinDepth = -512},
+    -- Lehmvarianten (Farben aus der Natur)
+    {name = "loam_brown",  desc = "Brauner Lehm",  type = "dirt", group = {crumbly = 3}, texture = "sti_core_loam.png^[multiply:#8b5a2b"},
+    {name = "loam_yellow", desc = "Gelber Lehm",   type = "dirt", group = {crumbly = 3}, texture = "sti_core_loam.png^[multiply:#cd9b1d"},
+    {name = "loam_red",    desc = "Roter Lehm",    type = "dirt", group = {crumbly = 3}, texture = "sti_core_loam.png^[multiply:#a0522d"},
+    {name = "loam_grey",   desc = "Grauer Lehm",   type = "dirt", group = {crumbly = 3}, texture = "sti_core_loam.png^[multiply:#708090"},
 }
 
--- Schleife zur automatischen Registrierung aller Blöcke, Items und Erz-Generierungen
-for _, elem in ipairs(elements) do
+-- Alle Erze / Elemente
+local elements = {
+    {name = "gold",      desc = "Gold",      color = "#ffd700"},
+    {name = "silver",    desc = "Silber",    color = "#e5e5e5"},
+    {name = "platinum",  desc = "Platin",    color = "#e5e4e2"},
+    {name = "iron",      desc = "Eisen",     color = "#8b4513"},
+    {name = "copper",    desc = "Kupfer",    color = "#d2691e"},
+    {name = "aluminum",  desc = "Aluminium", color = "#b2beb5"},
+    {name = "titanium",  desc = "Titan",     color = "#708090"},
+    {name = "nickel",    desc = "Nickel",    color = "#aca79e"},
+    {name = "zinc",      desc = "Zink",      color = "#bac4c8"},
+    {name = "lead",      desc = "Blei",      color = "#4f5d65"},
+    {name = "tin",       desc = "Zinn",      color = "#ebebeb"},
+    {name = "lithium",   desc = "Lithium",   color = "#e0e0e0"},
+    {name = "tungsten",  desc = "Wolfram",   color = "#3d4246"},
+    {name = "sulfur",    desc = "Schwefel",  color = "#e6e6fa"},
+    {name = "silicon",   desc = "Silizium",  color = "#555555"},
+    {name = "carbon",    desc = "Kohlenstoff", color = "#222222"},
+    {name = "uranium",   desc = "Uran",      color = "#39ff14"},
+    {name = "thorium",   desc = "Thorium",   color = "#4a5d4e"},
+}
 
-    -- 1. Das Rohmaterial (Lump / Bruchstück)
+-- Erz-Dichten Definition
+local densities = {
+    [1] = {suffix = "sparse", desc = "Geringe Dichte", yield = 1, texture = "sti_core_ore_sparse.png"},
+    [2] = {suffix = "medium", desc = "Mittlere Dichte", yield = 3, texture = "sti_core_ore_medium.png"},
+    [3] = {suffix = "dense",  desc = "Hohe Dichte",    yield = 6, texture = "sti_core_ore_dense.png"},
+}
+
+-------------------------------------------------------------------------------
+-- 2. VERARBEITUNGS-ITEMS REGISTRIEREN (Lump, Ingot, Nugget, Powder)
+-------------------------------------------------------------------------------
+for _, elem in ipairs(elements) do
+    -- Nugget (Winziges Bruchstück)
+    minetest.register_craftitem("sti_core:nugget_" .. elem.name, {
+        description = elem.desc .. "-Nugget",
+        inventory_image = "sti_core_nugget.png^[multiply:" .. elem.color,
+    })
+
+    -- Powder (Zerstossenes Erz / Pulver für Alchemie/Chemie/Schmelzen)
+    minetest.register_craftitem("sti_core:powder_" .. elem.name, {
+        description = elem.desc .. "-Pulver",
+        inventory_image = "sti_core_powder.png^[multiply:" .. elem.color,
+    })
+
+    -- Normaler Brocken (Lump)
     minetest.register_craftitem("sti_core:lump_" .. elem.name, {
         description = elem.desc .. "-Brocken",
         inventory_image = "sti_core_lump.png^[multiply:" .. elem.color,
     })
 
-    -- 2. Der verarbeitete Barren (Ingot)
+    -- Barren (Ingot)
     minetest.register_craftitem("sti_core:ingot_" .. elem.name, {
         description = elem.desc .. "-Barren",
         inventory_image = "sti_core_ingot.png^[multiply:" .. elem.color,
     })
 
-    -- 3. Der solide Materialblock
+    -- Kompakter Metallblock
     minetest.register_node("sti_core:block_" .. elem.name, {
         description = elem.desc .. "-Block",
         tiles = {"sti_core_block.png^[multiply:" .. elem.color},
@@ -57,35 +96,75 @@ for _, elem in ipairs(elements) do
         sounds = default.node_sound_stone_defaults(),
     })
 
-    -- 4. Das Erz-Erscheinungsbild in der Welt
-    minetest.register_node("sti_core:ore_" .. elem.name, {
-        description = elem.desc .. "-Erz",
-        -- Wir legen deine Erz-Adern direkt über die originale Stein-Textur von default
-        tiles = {"default_stone.png^sti_core_ore_template.png^[multiply:" .. elem.color},
-        groups = {cracky = 3},
-        sounds = default.node_sound_stone_defaults(),
-        drop = "sti_core:lump_" .. elem.name,
-    })
-
-    -- 5. Die Mapgen-Erzverteilung im Standard-Stein
-    minetest.register_ore({
-        ore_type       = "scatter",
-        ore            = "sti_core:ore_" .. elem.name,
-        wherein        = "default:stone",
-        clust_scarcity = 12 * 12 * 12,
-        clust_num_ores = 5,
-        clust_size     = 3,
-        y_max          = elem.MinDepth,
-        y_min          = elem.MaxDepth,
-    })
-
-    -- 6. Standard-Schmelz-Rezept im default:furnace (Brocken -> Barren)
+    ---------------------------------------------------------------------------
+    -- CRAFTING REZEPTE (Nugget <-> Lump <-> Ingot)
+    ---------------------------------------------------------------------------
+    -- 9 Nuggets = 1 Lump
     minetest.register_craft({
-        type = "cooking",
-        output = "sti_core:ingot_" .. elem.name,
-        recipe = "sti_core:lump_" .. elem.name,
-        cooktime = 5,
+        output = "sti_core:lump_" .. elem.name,
+        recipe = {
+            {"sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name},
+            {"sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name},
+            {"sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name},
+        }
     })
+    -- 1 Lump = 9 Nuggets
+    minetest.register_craft({
+        output = "sti_core:nugget_" .. elem.name .. " 9",
+        recipe = {{"sti_core:lump_" .. elem.name}}
+    })
+    -- Schmelzen: Pulver oder Klumpen zu Barren
+    minetest.register_craft({type = "cooking", output = "sti_core:ingot_"..elem.name, recipe = "sti_core:lump_"..elem.name, cooktime = 5})
+    minetest.register_craft({type = "cooking", output = "sti_core:ingot_"..elem.name, recipe = "sti_core:powder_"..elem.name, cooktime = 4}) -- Pulver schmilzt schneller!
 end
 
-print("[sti_core] Alle " .. #elements .. " natuerlichen Elemente erfolgreich mit Default-Support geladen!")
+-------------------------------------------------------------------------------
+-- 3. BASIS-BLÖCKE & ERZ-MATRIX REGISTRIEREN (Dichte 0 bis 3)
+-------------------------------------------------------------------------------
+for _, mat in ipairs(base_materials) do
+
+    -- Sounds festlegen je nach Typ (Festgestein vs. Erde/Sand)
+    local mat_sounds = default.node_sound_stone_defaults()
+    if mat.type == "dirt" then
+        mat_sounds = default.node_sound_dirt_defaults()
+    end
+
+    -- DICHTE 0: Der normale Basis-Block ohne Erz
+    minetest.register_node("sti_core:" .. mat.name, {
+        description = mat.desc,
+        tiles = {mat.texture},
+        groups = mat.group,
+        sounds = mat_sounds,
+    })
+
+    -- DICHTE 1 bis 3: Generiere für JEDES Material JEDES Erz in DREI Dichten
+    for _, elem in ipairs(elements) do
+        for d_num, d_data in ipairs(densities) do
+
+            local node_name = "sti_core:" .. mat.name .. "_with_" .. elem.name .. "_" .. d_data.suffix
+            local node_desc = mat.desc .. " mit " .. elem.desc .. " (" .. d_data.desc .. ")"
+
+            -- Dynamische Textur-Überlagerung: Basis-Textur + Erz-Overlay + Farb-Multiplikator
+            local final_texture = mat.texture .. "^" .. d_data.texture .. "^[multiply:" .. elem.color
+
+            minetest.register_node(node_name, {
+                description = node_desc,
+                tiles = {final_texture},
+                groups = mat.group, -- Übernimmt Härte des Ursprungsblocks
+                sounds = mat_sounds,
+                -- Je höher die Dichte, desto mehr Nuggets oder Klumpen droppen
+                drop = {
+                    max_items = d_data.yield,
+                    items = {
+                        {
+                            items = {"sti_core:nugget_" .. elem.name .. " " .. d_data.yield},
+                            rarity = 1,
+                        }
+                    }
+                }
+            })
+        end
+    end
+end
+
+print("[sti_core] Gewaltige Erzmatrix und Gesteinsarten erfolgreich generiert!")
