@@ -1,9 +1,14 @@
 -- =========================================================================
--- Custom HUD Mod für Luanti (Survival Pack) - All in One
+-- Custom HUD Mod für Luanti (Survival Pack) - All in One (Mit 3D-Armor)
 -- =========================================================================
 
 survival_hud_data = {} -- Globale Tabelle für alle HUD-IDs
 local player_states = {} -- Tabelle für Sprint- und Ausdauer-Logik
+
+-- Setzt die 3D-Armor Einstellung im Code auf Fehl, damit deren eigenes HUD nicht lädt
+if minetest.settings then
+    minetest.settings:set_bool("armor_hud", false)
+end
 
 -- =========================================================================
 -- 1. HUD REGISTRIEREN & AUFBAUEN
@@ -42,7 +47,7 @@ minetest.register_on_joinplayer(function(player)
     add_hud_element(player, "armor", {
         hud_elem_type = "statbar", position = {x = 0.5, y = 1},
         text = "armor_full.png", background = "armor_empty.png",
-        number = 20, max = 20,
+        number = 0, max = 20, -- Startet bei 0 ohne Rüstung
         offset = {x = -half_hotbar, y = -110}, size = {x = 16, y = 16}, alignment = {x = 1, y = 1},
     })
 
@@ -151,7 +156,7 @@ end)
 
 
 -- =========================================================================
--- 4. GLOBALE UPDATES (SAUERSTOFF, TRINKEN, HUNGER, DURST, AUSDAUER, TEMP)
+-- 4. GLOBALE UPDATES (SAUERSTOFF, TRINKEN, RÜSTUNG, SPRINTEN, HUNGER, TEMP)
 -- =========================================================================
 local timer_fast = 0
 local timer_slow = 0
@@ -174,13 +179,23 @@ minetest.register_globalstep(function(dtime)
             if breath < 0 then breath = 0 end
             player:hud_change(survival_hud_data[name]["oxygen_bar"], "number", breath)
 
+            -- RÜSTUNG (3D Armor API Integration)
+            if armor and armor.def and armor.def[name] then
+                local armor_level = armor.def[name].level or 0
+                -- Umrechnung von 0-100% auf deine 20 HUD-Punkte
+                local armor_hud_val = math.floor(armor_level / 5)
+                if armor_hud_val > 20 then armor_hud_val = 20 end
+
+                player:hud_change(survival_hud_data[name]["armor"], "number", armor_hud_val)
+            else
+                player:hud_change(survival_hud_data[name]["armor"], "number", 0)
+            end
+
             -- TRINKEN (IM WASSER + SNEAK)
             local pos = player:get_pos()
-            -- Lese den Block an den Füßen und am Kopf aus
             local node_feet = minetest.get_node({x = pos.x, y = pos.y + 0.1, z = pos.z}).name
             local node_head = minetest.get_node({x = pos.x, y = pos.y + 1.5, z = pos.z}).name
 
-            -- Prüfe, ob "water" im Blocknamen steckt
             local in_water = string.find(node_feet, "water") or string.find(node_head, "water")
 
             if in_water and controls.sneak then
@@ -188,13 +203,12 @@ minetest.register_globalstep(function(dtime)
                 local thirst = meta:get_int("survival_thirst")
 
                 if thirst < 20 then
-                    thirst = thirst + 2 -- Heilt 2 Punkte pro halber Sekunde
+                    thirst = thirst + 2
                     if thirst > 20 then thirst = 20 end
 
                     meta:set_int("survival_thirst", thirst)
                     player:hud_change(survival_hud_data[name]["thirst"], "number", thirst)
 
-                    -- Plätscher-Geräusch abspielen
                     minetest.sound_play("default_water_footstep", {
                         to_player = name, gain = 0.5
                     }, true)
