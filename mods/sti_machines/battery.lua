@@ -30,6 +30,7 @@ minetest.register_node("sti_machines:battery", {
     description = "Akkumulator (Konfigurierbar)",
     tiles = {"stimachines_battery_top.png", "stimachines_battery_bottom.png", "stimachines_battery_side.png"},
     groups = {cracky = 2, technic_machine = 1, machine_power = 1},
+    is_energy_consumer = true, -- Im Input-Modus: Energie vom Netz aufnehmen
 
     on_construct = function(pos)
         local meta = minetest.get_meta(pos)

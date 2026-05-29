@@ -36,7 +36,7 @@ minetest.register_node("sti_machines:autocrafter", {
     },
     paramtype2 = "facedir",
     groups = {cracky = 2, technic_machine = 1, machine_item = 1},
-    is_energy_consumer = true, -- Flag für Energieaufnahme
+    is_energy_consumer = true, -- Pflicht: damit push_energy_network ihn findet
 
     on_construct = function(pos)
         local meta = minetest.get_meta(pos)

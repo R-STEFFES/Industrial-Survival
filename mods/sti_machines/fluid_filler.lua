@@ -76,6 +76,7 @@ minetest.register_node("sti_machines:fluid_filler", {
     },
     paramtype2 = "facedir",
     groups = {cracky = 2, machine_fluid = 1, machine_item = 1},
+    is_energy_consumer = true, -- Pflicht: damit push_energy_network ihn findet
 
     on_construct = function(pos)
         local meta = minetest.get_meta(pos)
@@ -84,6 +85,7 @@ minetest.register_node("sti_machines:fluid_filler", {
         inv:set_size("dst", 1)
         meta:set_int("tank_amount", 0)
         meta:set_int("energy", 0)
+        meta:set_int("max_energy", 4000) -- WICHTIG: für push_energy_network
         meta:set_int("side_top", 1) -- Standard: Oben Input (Blau)
         update_filler_formspec(pos)
     end,

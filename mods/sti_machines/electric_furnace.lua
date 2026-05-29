@@ -51,7 +51,7 @@ local furnace_def = {
         meta:set_float("max_cook_time", 0.0)
         meta:set_string("infotext", "E-Ofen: Bereit.")
 
-        update_elecfurnace_formspec(pos)
+        sti_machines.update_elecfurnace_formspec(pos)
     end,
 
     on_metadata_inventory_put = function(pos, listname, index, stack, player)

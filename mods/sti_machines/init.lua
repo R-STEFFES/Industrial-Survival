@@ -47,13 +47,20 @@ function sti_machines.push_energy_network(start_pos, energy_available)
                         table.insert(queue, npos)
 
                     -- Wenn es ein Verbraucher ist, zur Liste hinzufügen
+                    -- Batterie im Output-Modus NICHT als Verbraucher zählen
                     elseif def.is_energy_consumer then
                         local meta = minetest.get_meta(npos)
                         if meta then
-                            local e_current = meta:get_int("energy")
-                            local e_max = meta:get_int("max_energy")
-                            if e_current < e_max then
-                                table.insert(consumers, {pos=npos, meta=meta, current=e_current, max=e_max})
+                            -- Batterie im Output-Modus überspringen (sie liefert, nicht verbraucht)
+                            local mode = meta:get_string("mode")
+                            if mode == "output" then
+                                -- ignorieren
+                            else
+                                local e_current = meta:get_int("energy")
+                                local e_max = meta:get_int("max_energy")
+                                if e_current < e_max then
+                                    table.insert(consumers, {pos=npos, meta=meta, current=e_current, max=e_max})
+                                end
                             end
                         end
                     end
