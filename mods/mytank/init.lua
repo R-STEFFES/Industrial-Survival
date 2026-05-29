@@ -754,3 +754,4 @@ function tank.update_visuals(controller_pos, air_blocks)
         })
     end
 end
+_G.mytank = tank
