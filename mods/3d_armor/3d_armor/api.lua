@@ -2,7 +2,7 @@
 --- 3D Armor API
 --
 --  @topic api
-
+local armor_elements = {"head", "torso", "legs", "feet"}
 
 local transparent_armor = minetest.settings:get_bool("armor_transparent", false)
 
