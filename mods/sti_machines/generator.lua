@@ -1,5 +1,5 @@
 -- =======================================================================
--- 1. FURNACE GENERATOR (Kohle -> Strom) mit Active-State
+-- 1. FURNACE GENERATOR (Kohle -> Strom) mit Active-State (Netzwerk-Push)
 -- =======================================================================
 
 local function get_fuel_time(itemstack)
@@ -47,6 +47,7 @@ local generator_def = {
     description = "Kohle-Generator",
     paramtype2 = "facedir",
     groups = {cracky = 2, technic_machine = 1, machine_power = 1},
+    is_energy_source = true, -- Direktes Flag für das Kabel
 
     on_construct = function(pos)
         local meta = minetest.get_meta(pos)
@@ -123,42 +124,26 @@ local generator_def = {
         meta:set_int("energy", energy)
         sti_machines.update_generator_formspec(pos)
 
-        -- Pushe Strom direkt in angrenzende Verbraucher (Nachbarschafts-Logik ohne Kabel)
+        -- ====================================================
+        -- NEU: Energie über das Kabelnetzwerk pushen
+        -- ====================================================
         if energy > 0 then
-            local neighbors = {
-                {x=pos.x+1, y=pos.y, z=pos.z}, {x=pos.x-1, y=pos.y, z=pos.z},
-                {x=pos.x, y=pos.y+1, z=pos.z}, {x=pos.x, y=pos.y-1, z=pos.z},
-                {x=pos.x, y=pos.y, z=pos.z+1}, {x=pos.x, y=pos.y, z=pos.z-1}
-            }
-            for _, npos in ipairs(neighbors) do
-                local nmeta = minetest.get_meta(npos)
-                if nmeta and nmeta:get_int("max_energy") > 0 then
-                    local n_max = nmeta:get_int("max_energy")
-                    local n_mode = nmeta:get_string("mode")
-                    local n_energy = nmeta:get_int("energy")
-
-                    -- Falls der Nachbar ein Ofen ist ODER ein Akku im Input-Modus
-                    if n_max == 4000 or (n_max == 50000 and n_mode == "input") then
-                        local space = n_max - n_energy
-                        if space > 0 then
-                            local transfer = math.min(100, energy, space)
-                            energy = energy - transfer
-                            nmeta:set_int("energy", n_energy + transfer)
-
-                            local nt = minetest.get_node_timer(npos)
-                            if not nt:is_started() then nt:start(1.0) end
-                        end
-                    end
+            if sti_machines.push_energy_network then
+                local drawn = sti_machines.push_energy_network(pos, energy)
+                if drawn > 0 then
+                    energy = energy - drawn
+                    meta:set_int("energy", energy)
                 end
+            else
+                minetest.log("error", "[sti_machines] push_energy_network fehlt in init.lua!")
             end
-            meta:set_int("energy", energy)
         end
 
         return (burn_time > 0 or energy > 0)
     end
 }
 
--- Nodes registrieren
+-- Inaktiven Generator registrieren
 local def_inactive = table.copy(generator_def)
 def_inactive.tiles = {
     "stimachines_generator_top.png", "stimachines_generator_bottom.png",
@@ -167,6 +152,7 @@ def_inactive.tiles = {
 }
 minetest.register_node("sti_machines:generator", def_inactive)
 
+-- Aktiven Generator registrieren
 local def_active = table.copy(generator_def)
 def_active.tiles = {
     "stimachines_generator_top.png", "stimachines_generator_bottom.png",
@@ -177,7 +163,8 @@ def_active.groups = {cracky = 2, technic_machine = 1, machine_power = 1, not_in_
 def_active.light_source = 9
 minetest.register_node("sti_machines:generator_active", def_active)
 
--- Universelle API zum Absaugen von Strom aus Nodes (Kabel greifen hierauf zu)
+-- Diese Funktion wird für den Push-Ansatz eigentlich nicht mehr zwingend benötigt,
+-- ich lasse sie aber drin, falls du sie für andere Maschinen (wie Akkus) noch verwendest.
 function sti_machines.draw_energy_from_node(pos, amount)
     local meta = minetest.get_meta(pos)
     if not meta then return 0 end

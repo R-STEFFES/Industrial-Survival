@@ -46,16 +46,22 @@ minetest.register_node("mylogistics:cable", {
                     local n_mode = nmeta:get_string("mode") -- Hauptsächlich für Akkus
                     local n_energy = nmeta:get_int("energy")
 
-                    -- Ist es eine Energiequelle? (Aktivierter Generator oder Akku auf Output)
-                    if n_max == 10000 or (n_max == 50000 and n_mode == "output") then
-                        if n_energy > 0 then
-                            table.insert(sources, neighbor_pos)
-                            total_available = total_available + n_energy
-                        end
-                    -- Ist es ein Verbraucher? (E-Ofen oder Akku auf Input)
-                    elseif n_max == 4000 or (n_max == 50000 and n_mode == "input") then
-                        if n_energy < n_max then
-                            table.insert(consumers, {pos = neighbor_pos, meta = nmeta, current = n_energy, max = n_max})
+                    -- Node-Definition holen, um Gruppen abzufragen
+                    local n_name = minetest.get_node(neighbor_pos).name
+                    local n_def = minetest.registered_nodes[n_name]
+
+                    if n_def and n_def.groups then
+                        -- Ist es eine Energiequelle? (Gruppe machine_power ODER Akku auf Output)
+                        if n_def.groups.machine_power == 1 or (n_max == 50000 and n_mode == "output") then
+                            if n_energy > 0 then
+                                table.insert(sources, neighbor_pos)
+                                total_available = total_available + n_energy
+                            end
+                        -- Ist es ein Verbraucher? (Gruppe machine_item ODER Akku auf Input)
+                        elseif n_def.groups.machine_item == 1 or (n_max == 50000 and n_mode == "input") then
+                            if n_energy < n_max then
+                                table.insert(consumers, {pos = neighbor_pos, meta = nmeta, current = n_energy, max = n_max})
+                            end
                         end
                     end
                 end

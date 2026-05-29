@@ -36,6 +36,7 @@ local furnace_def = {
     description = "Elektrischer Ofen",
     paramtype2 = "facedir",
     groups = {cracky = 2, technic_machine = 1, machine_item = 1},
+    is_energy_consumer = true, -- Direktes Flag für das Kabel
 
     on_construct = function(pos)
         local meta = minetest.get_meta(pos)
@@ -50,7 +51,7 @@ local furnace_def = {
         meta:set_float("max_cook_time", 0.0)
         meta:set_string("infotext", "E-Ofen: Bereit.")
 
-        sti_machines.update_elecfurnace_formspec(pos)
+        update_elecfurnace_formspec(pos)
     end,
 
     on_metadata_inventory_put = function(pos, listname, index, stack, player)
@@ -103,7 +104,6 @@ local furnace_def = {
             meta:set_string("infotext", "E-Ofen: Bereit.\nEnergie: " .. energy .. " EU")
         end
 
-        -- Schalte Textur um basierend auf Aktivität
         if is_smelting then
             if node.name ~= "sti_machines:electric_furnace_active" then
                 minetest.swap_node(pos, {name = "sti_machines:electric_furnace_active", param2 = node.param2})
@@ -118,12 +118,10 @@ local furnace_def = {
         meta:set_float("cook_time", cook_time)
         sti_machines.update_elecfurnace_formspec(pos)
 
-        -- Läuft weiter, solange Items drin sind oder Reststrom verbleibt
         return (not src_stack:is_empty() or energy > 0)
     end
 }
 
--- Inaktiven Ofen registrieren
 local furn_inactive = table.copy(furnace_def)
 furn_inactive.tiles = {
     "stimachines_efurnace_top.png", "stimachines_efurnace_bottom.png",
@@ -132,7 +130,6 @@ furn_inactive.tiles = {
 }
 minetest.register_node("sti_machines:electric_furnace", furn_inactive)
 
--- Aktiven Ofen registrieren
 local furn_active = table.copy(furnace_def)
 furn_active.tiles = {
     "stimachines_efurnace_top.png", "stimachines_efurnace_bottom.png",
