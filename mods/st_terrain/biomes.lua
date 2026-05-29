@@ -174,7 +174,7 @@ minetest.register_biome({
 minetest.register_biome({
     name           = "st_desert",
     node_top       = "sti_core:sand",
-    depth_top      = 3,
+    depth_top      = 10,
     node_filler    = "sti_core:gravel",
     depth_filler   = 3,
     node_stone     = "sti_core:limestone",

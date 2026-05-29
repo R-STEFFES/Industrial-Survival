@@ -23,26 +23,7 @@ local base_materials = {
     {name = "loam_grey",     desc = "Grauer Lehm",     type = "dirt", group = {crumbly = 3}, texture = "sti_core_loam.png^[multiply:#708090"},
 }
 
-elements = {
-    {name = "gold",      desc = "Gold",        color = "#ffd700"},
-    {name = "silver",    desc = "Silber",      color = "#e5e5e5"},
-    {name = "platinum",  desc = "Platin",      color = "#e5e4e2"},
-    {name = "iron",      desc = "Eisen",       color = "#8b4513"},
-    {name = "copper",    desc = "Kupfer",      color = "#d2691e"},
-    {name = "aluminum",  desc = "Aluminium",   color = "#b2beb5"},
-    {name = "titanium",  desc = "Titan",       color = "#708090"},
-    {name = "nickel",    desc = "Nickel",      color = "#aca79e"},
-    {name = "zinc",      desc = "Zink",        color = "#bac4c8"},
-    {name = "lead",      desc = "Blei",        color = "#4f5d65"},
-    {name = "tin",       desc = "Zinn",        color = "#ebebeb"},
-    {name = "lithium",   desc = "Lithium",     color = "#e0e0e0"},
-    {name = "tungsten",  desc = "Wolfram",     color = "#3d4246"},
-    {name = "sulfur",    desc = "Schwefel",    color = "#e6e6fa"},
-    {name = "silicon",   desc = "Silizium",    color = "#555555"},
-    {name = "carbon",    desc = "Kohlenstoff", color = "#222222"},
-    {name = "uranium",   desc = "Uran",        color = "#39ff14"},
-    {name = "thorium",   desc = "Thorium",     color = "#4a5d4e"},
-}
+dofile(minetest.get_modpath("sti_core") .. "/elements.lua")
 
 local densities = {
     [1] = {suffix = "sparse", desc = "Geringe Dichte", yield = 1, texture = "sti_core_ore_sparse.png"},
