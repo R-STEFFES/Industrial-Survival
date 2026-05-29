@@ -23,7 +23,7 @@ local base_materials = {
     {name = "loam_grey",     desc = "Grauer Lehm",     type = "dirt", group = {crumbly = 3}, texture = "sti_core_loam.png^[multiply:#708090"},
 }
 
-local elements = {
+elements = {
     {name = "gold",      desc = "Gold",        color = "#ffd700"},
     {name = "silver",    desc = "Silber",      color = "#e5e5e5"},
     {name = "platinum",  desc = "Platin",      color = "#e5e4e2"},
@@ -113,5 +113,5 @@ for _, mat in ipairs(base_materials) do
         end
     end
 end
-
+dofile(minetest.get_modpath("sti_core") .. "/tools_armor.lua")
 print("[sti_core] Erzmatrix erfolgreich mit Overlay-Technik generiert!")
