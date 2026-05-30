@@ -49,3 +49,69 @@
 [submodule "mods/bucket"]
 	path = mods/bucket
 	url = https://github.com/minetest-game/bucket.git
+[submodule "mods/bones"]
+	path = mods/bones
+	url = https://github.com/minetest-game/bones.git
+[submodule "mods/boats"]
+	path = mods/boats
+	url = https://github.com/minetest-game/boats.git
+[submodule "mods/xpanes"]
+	path = mods/xpanes
+	url = https://github.com/minetest-game/xpanes.git
+[submodule "mods/dye"]
+	path = mods/dye
+	url = https://github.com/minetest-game/dye.git
+[submodule "mods/vessels"]
+	path = mods/vessels
+	url = https://github.com/minetest-game/vessels.git
+[submodule "mods/map"]
+	path = mods/map
+	url = https://github.com/minetest-game/map.git
+[submodule "mods/carts"]
+	path = mods/carts
+	url = https://github.com/minetest-game/carts.git
+[submodule "mods/sfinv"]
+	path = mods/sfinv
+	url = https://github.com/minetest-game/sfinv.git
+[submodule "mods/creative"]
+	path = mods/creative
+	url = https://github.com/minetest-game/creative.git
+[submodule "mods/wool"]
+	path = mods/wool
+	url = https://github.com/minetest-game/wool.git
+[submodule "mods/walls"]
+	path = mods/walls
+	url = https://github.com/minetest-game/walls.git
+[submodule "mods/sethome"]
+	path = mods/sethome
+	url = https://github.com/minetest-game/sethome.git
+[submodule "mods/mtg_craftguide"]
+	path = mods/mtg_craftguide
+	url = https://github.com/minetest-game/mtg_craftguide.git
+[submodule "mods/game_commands"]
+	path = mods/game_commands
+	url = https://github.com/minetest-game/game_commands.git
+[submodule "mods/butterflies"]
+	path = mods/butterflies
+	url = https://github.com/minetest-game/butterflies.git
+[submodule "mods/binoculars"]
+	path = mods/binoculars
+	url = https://github.com/minetest-game/binoculars.git
+[submodule "mods/spawn"]
+	path = mods/spawn
+	url = https://github.com/minetest-game/spawn.git
+[submodule "mods/player_api"]
+	path = mods/player_api
+	url = https://github.com/minetest-game/player_api.git
+[submodule "mods/give_initial_stuff"]
+	path = mods/give_initial_stuff
+	url = https://github.com/minetest-game/give_initial_stuff.git
+[submodule "mods/weather"]
+	path = mods/weather
+	url = https://github.com/minetest-game/weather.git
+[submodule "mods/dungeon_loot"]
+	path = mods/dungeon_loot
+	url = https://github.com/minetest-game/dungeon_loot.git
+[submodule "mods/env_sounds"]
+	path = mods/env_sounds
+	url = https://github.com/minetest-game/env_sounds.git
