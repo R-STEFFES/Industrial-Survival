@@ -115,3 +115,9 @@
 [submodule "mods/env_sounds"]
 	path = mods/env_sounds
 	url = https://github.com/minetest-game/env_sounds.git
+[submodule "mods/xcompat"]
+	path = mods/xcompat
+	url = https://github.com/mt-mods/xcompat.git
+[submodule "mods/fireflies"]
+	path = mods/fireflies
+	url = https://github.com/minetest-game/fireflies.git
