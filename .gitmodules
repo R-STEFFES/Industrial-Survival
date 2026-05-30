@@ -1,0 +1,18 @@
+[submodule "mods/luanti-master/games/Industrial-Survival/mods/3d_armor"]
+	path = mods/luanti-master/games/Industrial-Survival/mods/3d_armor
+	url = https://github.com/minetest-mods/3d_armor.git
+[submodule "mods/3d_armor"]
+	path = mods/3d_armor
+	url = https://github.com/minetest-mods/3d_armor.git
+[submodule "mods/fakelib"]
+	path = mods/fakelib
+	url = https://github.com/OgelGames/fakelib.git
+[submodule "mods/animalworld"]
+	path = mods/animalworld
+	url = https://github.com/Skandarella/animalworld.git
+[submodule "mods/animalworld-main"]
+	path = mods/animalworld-main
+	url = https://github.com/Skandarella/animalworld.git
+[submodule "mods/mobs"]
+	path = mods/mobs
+	url = https://codeberg.org/tenplus1/mobs_redo.git
