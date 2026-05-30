@@ -56,7 +56,7 @@ local function process_fluid_transport(pos)
         end
     end
 
-    -- 2. VERTEILUNG (Der Fix für die Seiten-Logik)
+    -- 2. VERTEILUNG (Mit intelligenter Facedir-Erkennung für den Goldwasher)
     if amount > 0 and fluid ~= "" then
         local targets = {}
 
@@ -71,6 +71,40 @@ local function process_fluid_transport(pos)
                 local nmeta = minetest.get_meta(npos)
                 if nmeta:get_int("amount") < 200 and (nmeta:get_string("fluid") == "" or nmeta:get_string("fluid") == fluid) then
                     table.insert(targets, {pos = npos, type = "duct"})
+                end
+            -- ERWEITERUNG: Richtungsunabhängige Erkennung für die Goldwaschanlage
+            elseif nnode.name == "sti_machines:gold_washer" then
+                local nmeta = minetest.get_meta(npos)
+                local p2 = nnode.param2 or 0
+                local side = "top"
+
+                -- Oben/Unten bleiben immer absolut identisch
+                if dir.y == 1 then
+                    side = "bottom"
+                elseif dir.y == -1 then
+                    side = "top"
+                else
+                    -- Horizontale Rotations-Matrix (Gegenstück zu deiner pump.lua Logik)
+                    local front = minetest.facedir_to_dir(p2)
+                    local lx = front.z
+                    local lz = -front.x
+
+                    if dir.x == -front.x and dir.z == -front.z then
+                        side = "front"
+                    elseif dir.x == front.x and dir.z == front.z then
+                        side = "back"
+                    elseif dir.x == -lx and dir.z == -lz then
+                        side = "left"
+                    elseif dir.x == lx and dir.z == lz then
+                        side = "right"
+                    end
+                end
+
+                -- Prüfen, ob die exakt getroffene relative Seite auf "Fluid In" (3) steht & Flüssigkeit Wasser ist
+                if nmeta:get_int("side_" .. side) == 3 and fluid == "water" then
+                    if nmeta:get_int("tank_amount") < 8000 then
+                        table.insert(targets, {pos = npos, type = "washer"})
+                    end
                 end
             end
         end
@@ -96,7 +130,14 @@ local function process_fluid_transport(pos)
                         amount = amount - t_final
                         if mytank and mytank.check_and_calculate_tank then mytank.check_and_calculate_tank(c_pos) end
                     end
-                else
+                -- ERWEITERUNG: Wasser direkt in den Maschinentank des Goldwashers buchen
+                elseif target.type == "washer" then
+                    local nmeta = minetest.get_meta(target.pos)
+                    local w_amt = nmeta:get_int("tank_amount")
+                    local t_final = math.min(transfer, 8000 - w_amt)
+                    nmeta:set_int("tank_amount", w_amt + t_final)
+                    amount = amount - t_final
+                else -- Das ist dein originales Verhalten für "duct"
                     local nmeta = minetest.get_meta(target.pos)
                     local n_amt = nmeta:get_int("amount")
                     local t_final = math.min(transfer, 200 - n_amt)

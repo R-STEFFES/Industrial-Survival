@@ -352,6 +352,7 @@ for _, t in ipairs(DUCT_TYPES) do
         connect_sides = { "top", "bottom", "front", "back", "left", "right" },
         connects_to = {
             "group:itemduct",
+            "group:machine_item",
             "default:chest", "default:chest_locked",
             "default:furnace", "default:furnace_active",
         },

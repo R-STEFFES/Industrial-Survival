@@ -2,28 +2,12 @@
 sti_core = {}
 
 -------------------------------------------------------------------------------
--- 1. DATEN-TABELLEN DEFINIEREN
+-- 1. EXTERNE DATEN UND MATERIALIEN LADEN
 -------------------------------------------------------------------------------
+local modpath = minetest.get_modpath("sti_core")
 
-local base_materials = {
-    {name = "stone",         desc = "Stein",           type = "stone", group = {cracky = 3, stone = 1}, texture = "default_stone.png"},
-    {name = "limestone",     desc = "Kalkstein",       type = "stone", group = {cracky = 3, stone = 1}, texture = "sti_core_limestone.png"},
-    {name = "basalt",        desc = "Basalt",          type = "stone", group = {cracky = 2, stone = 1}, texture = "sti_core_basalt.png"},
-    {name = "granite",       desc = "Granit",          type = "stone", group = {cracky = 2, stone = 1}, texture = "sti_core_granite.png"},
-    {name = "peat",          desc = "Torf",            type = "dirt",  group = {crumbly = 3},           texture = "sti_core_peat.png"},
-    {name = "gravel_coarse", desc = "Schotter",        type = "dirt",  group = {crumbly = 2},           texture = "sti_core_gravel_coarse.png"},
-    {name = "gravel",        desc = "Kies",            type = "dirt",  group = {crumbly = 2},           texture = "default_gravel.png"},
-    {name = "sand",          desc = "Sand",            type = "dirt",  group = {crumbly = 3, sand = 1}, texture = "default_sand.png"},
-    {name = "loamy_sand",    desc = "Lehmsand-Gemisch", type = "dirt", group = {crumbly = 3},           texture = "sti_core_loamy_sand.png"},
-    {name = "silt",          desc = "Schluff",         type = "dirt",  group = {crumbly = 3},           texture = "sti_core_silt.png"},
-    {name = "clay",          desc = "Ton",             type = "dirt",  group = {crumbly = 3},           texture = "default_clay.png"},
-    {name = "loam_brown",    desc = "Brauner Lehm",    type = "dirt", group = {crumbly = 3}, texture = "sti_core_loam.png^[multiply:#8b5a2b"},
-    {name = "loam_yellow",   desc = "Gelber Lehm",     type = "dirt", group = {crumbly = 3}, texture = "sti_core_loam.png^[multiply:#cd9b1d"},
-    {name = "loam_red",      desc = "Roter Lehm",      type = "dirt", group = {crumbly = 3}, texture = "sti_core_loam.png^[multiply:#a0522d"},
-    {name = "loam_grey",     desc = "Grauer Lehm",     type = "dirt", group = {crumbly = 3}, texture = "sti_core_loam.png^[multiply:#708090"},
-}
-
-dofile(minetest.get_modpath("sti_core") .. "/elements.lua")
+dofile(modpath .. "/materials.lua")
+dofile(modpath .. "/elements.lua")
 
 local densities = {
     [1] = {suffix = "sparse", desc = "Geringe Dichte", yield = 1, texture = "sti_core_ore_sparse.png"},
@@ -32,7 +16,7 @@ local densities = {
 }
 
 -------------------------------------------------------------------------------
--- 2. VERARBEITUNGS-ITEMS
+-- 2. VERARBEITUNGS-ITEMS (ERZE)
 -------------------------------------------------------------------------------
 for _, elem in ipairs(elements) do
     local items = {"nugget", "powder", "lump", "ingot"}
@@ -49,16 +33,18 @@ for _, elem in ipairs(elements) do
         groups = {cracky = 2, stone = 1},
         sounds = default.node_sound_stone_defaults(),
     })
-
 end
-dofile(minetest.get_modpath("sti_core") .. "/recipes.lua")
+
+-- Rezepte laden (Erze, Metalle und die neuen Ton-Rezepte)
+dofile(modpath .. "/recipes.lua")
+
 -------------------------------------------------------------------------------
--- 3. BASIS-BLÖCKE & ERZ-MATRIX
+-- 3. BASIS-BLÖCKE & ERZ-MATRIX GENERIEREN
 -------------------------------------------------------------------------------
-for _, mat in ipairs(base_materials) do
+for _, mat in ipairs(sti_core.base_materials) do
     local mat_sounds = (mat.type == "dirt") and default.node_sound_dirt_defaults() or default.node_sound_stone_defaults()
 
-    -- Basis-Node
+    -- Basis-Node registrieren
     minetest.register_node("sti_core:" .. mat.name, {
         description = mat.desc,
         tiles = {mat.texture},
@@ -72,13 +58,8 @@ for _, mat in ipairs(base_materials) do
 
             minetest.register_node("sti_core:" .. mat.name .. "_with_" .. elem.name .. "_" .. d_data.suffix, {
                 description = mat.desc .. " mit " .. elem.desc .. " (" .. d_data.desc .. ")",
-
-                -- HINTERGRUND: Der Stein (bleibt immer original)
                 tiles = {mat.texture},
-
-                -- OVERLAY: Nur das Erz-PNG bekommt den Multiply-Filter
                 overlay_tiles = {d_data.texture .. "^[multiply:" .. elem.color},
-
                 groups = mat.group,
                 sounds = mat_sounds,
                 drop = {
@@ -89,5 +70,19 @@ for _, mat in ipairs(base_materials) do
         end
     end
 end
-dofile(minetest.get_modpath("sti_core") .. "/tools_armor.lua")
-print("[sti_core] Erzmatrix erfolgreich mit Overlay-Technik generiert!")
+
+-------------------------------------------------------------------------------
+-- 4. DROP-OVERRIDES FÜR FARBIGEN LEHM
+-------------------------------------------------------------------------------
+-- Erst nach der Registrierung der Basis-Knoten können wir deren Drop-Verhalten überschreiben
+minetest.override_item("sti_core:loam_brown",  { drop = "sti_core:clay_raw_brown 4" })
+minetest.override_item("sti_core:loam_yellow", { drop = "sti_core:clay_raw_yellow 4" })
+minetest.override_item("sti_core:loam_red",    { drop = "sti_core:clay_raw_red 4" })
+minetest.override_item("sti_core:loam_grey",   { drop = "sti_core:clay_raw_grey 4" })
+
+-------------------------------------------------------------------------------
+-- 5. TOOLS & ARMOR
+-------------------------------------------------------------------------------
+dofile(modpath .. "/tools_armor.lua")
+
+print("[sti_core] Erzmatrix und Materialsystem erfolgreich geladen!")

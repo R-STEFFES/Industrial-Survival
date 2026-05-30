@@ -1,13 +1,26 @@
 -- =======================================================================
--- STI MACHINES - GOLDWASCHANLAGE (WASSER + ENERGIE)
+-- STI MACHINES - GOLDWASCHANLAGE (INTELLIGENTE SEITENSTEUERUNG)
 -- =======================================================================
 
 local sides = {"top", "bottom", "front", "back", "left", "right"}
 
+-- Erweiterte Farbdefinitionen für die Seitenmodi
 local function get_side_color(mode)
-    if mode == 1 then return "#3366ff" end -- Blau (Input)
-    if mode == 2 then return "#ffaa00" end -- Orange (Output)
-    return "#555555" -- Grau
+    if mode == 1 then return "#3366ff" end -- Blau (Item Input)
+    if mode == 2 then return "#ffaa00" end -- Orange (Item Output)
+    if mode == 3 then return "#00cc44" end -- Grün (Fluid Input)
+    if mode == 4 then return "#b300b3" end -- Lila (Fluid Output)
+    if mode == 5 then return "#ff3333" end -- Rot (Input/Output / ME-Interface)
+    return "#555555" -- Grau (Deaktiviert)
+end
+
+local function get_side_text(mode)
+    if mode == 1 then return "Item In" end
+    if mode == 2 then return "Item Out" end
+    if mode == 3 then return "Fluid In" end
+    if mode == 4 then return "Fluid Out" end
+    if mode == 5 then return "I/O (ME)" end
+    return "Aus"
 end
 
 local function update_washer_formspec(pos)
@@ -23,7 +36,7 @@ local function update_washer_formspec(pos)
     local m_left   = meta:get_int("side_left")
     local m_right  = meta:get_int("side_right")
 
-    local formspec = "size[9,9.5]" ..
+    local formspec = "size[11,9.5]" ..
         "label[0.5,0.3;--- GOLDWASCHANLAGE ---]" ..
         "label[0.5,0.8;Status: " .. status .. "]" ..
 
@@ -42,14 +55,28 @@ local function update_washer_formspec(pos)
         "label[2.5,2.2;Output (Nuggets/Lehm):]" ..
         "list[context;dst;2.5,2.6;4,2;]" ..
 
-        -- Seiten-Konfiguration
-        "label[7.0,2.2;Seiten:]" ..
-        "style[btn_top;bgcolor=" .. get_side_color(m_top) .. "]" ..
-        "button[7.0,2.6;1.5,0.6;btn_top;Oben]" ..
-        "style[btn_bottom;bgcolor=" .. get_side_color(m_bottom) .. "]" ..
-        "button[7.0,3.3;1.5,0.6;btn_bottom;Unten]" ..
+        -- Seiten-Konfiguration (Erweitertes GUI-Layout)
+        "label[7.5,2.2;Seiten-Konfiguration:]" ..
 
-        "list[current_player;main;0.5,5.3;8,4;]" ..
+        "style[btn_top;bgcolor=" .. get_side_color(m_top) .. "]" ..
+        "button[7.5,2.6;3.0,0.6;btn_top;Oben: " .. get_side_text(m_top) .. "]" ..
+
+        "style[btn_bottom;bgcolor=" .. get_side_color(m_bottom) .. "]" ..
+        "button[7.5,3.3;3.0,0.6;btn_bottom;Unten: " .. get_side_text(m_bottom) .. "]" ..
+
+        "style[btn_front;bgcolor=" .. get_side_color(m_front) .. "]" ..
+        "button[7.5,4.0;3.0,0.6;btn_front;Vorne: " .. get_side_text(m_front) .. "]" ..
+
+        "style[btn_back;bgcolor=" .. get_side_color(m_back) .. "]" ..
+        "button[7.5,4.7;3.0,0.6;btn_back;Hinten: " .. get_side_text(m_back) .. "]" ..
+
+        "style[btn_left;bgcolor=" .. get_side_color(m_left) .. "]" ..
+        "button[7.5,5.4;3.0,0.6;btn_left;Links: " .. get_side_text(m_left) .. "]" ..
+
+        "style[btn_right;bgcolor=" .. get_side_color(m_right) .. "]" ..
+        "button[7.5,6.1;3.0,0.6;btn_right;Rechts: " .. get_side_text(m_right) .. "]" ..
+
+        "list[current_player;main;0.5,7.0;8,4;]" ..
         "listring[current_player;main]" ..
         "listring[context;src]" ..
         "listring[context;dst]"
@@ -65,8 +92,16 @@ minetest.register_node("sti_machines:gold_washer", {
         "stimachines_machine_side.png", "stimachines_washer_front.png"
     },
     paramtype2 = "facedir",
-    groups = {cracky = 2, machine_fluid = 1, machine_item = 1},
-    is_energy_consumer = true, -- Pflicht: damit push_energy_network ihn findet
+
+    -- FIX: Gruppen hinzugefügt, damit Kabel und Itemducts andocken können!
+    groups = {
+        cracky = 2,
+        machine_fluid = 1,
+        machine_item = 1,
+        machine_power = 1,      -- Wichtig für energyduct.lua (Kabelverbindung)
+        technic_machine = 1     -- Zur Absicherung für andere Stromleitungen
+    },
+    is_energy_consumer = true,
 
     on_construct = function(pos)
         local meta = minetest.get_meta(pos)
@@ -75,8 +110,16 @@ minetest.register_node("sti_machines:gold_washer", {
         inv:set_size("dst", 8)
         meta:set_int("tank_amount", 0)
         meta:set_int("energy", 0)
-        meta:set_int("max_energy", 4000) -- WICHTIG: muss "max_energy" heißen für push_energy_network
-        meta:set_int("side_top", 1) -- Oben Wasser-In
+        meta:set_int("max_energy", 4000)
+
+        -- Standard-Seiten-Modi (0 = Aus, 1 = Item In, 2 = Item Out, 3 = Fluid In, 4 = Fluid Out, 5 = I/O)
+        meta:set_int("side_top", 3)    -- Oben standardmäßig Fluid Input (Wasser)
+        meta:set_int("side_bottom", 0)
+        meta:set_int("side_front", 0)
+        meta:set_int("side_back", 0)
+        meta:set_int("side_left", 1)   -- Links standardmäßig Item Input
+        meta:set_int("side_right", 2)  -- Rechts standardmäßig Item Output
+
         update_washer_formspec(pos)
     end,
 
@@ -85,10 +128,22 @@ minetest.register_node("sti_machines:gold_washer", {
         for _, side in ipairs(sides) do
             if fields["btn_" .. side] then
                 local mode = meta:get_int("side_" .. side)
-                meta:set_int("side_" .. side, (mode + 1) % 3)
+                -- Modus-Umschaltung von 0 bis 5 (6 Zustände)
+                meta:set_int("side_" .. side, (mode + 1) % 6)
                 update_washer_formspec(pos)
             end
         end
+    end,
+
+    -- Logik für Item-Pipelines (itemduct.lua benötigt diese Callbacks bei Direktanschluss)
+    allow_metadata_inventory_put = function(pos, listname, index, stack, player)
+        if listname == "src" then return stack:get_count() end
+        return 0
+    end,
+
+    allow_metadata_inventory_take = function(pos, listname, index, stack, player)
+        if listname == "dst" then return stack:get_count() end
+        return 0
     end,
 
     on_timer = function(pos, elapsed)
@@ -98,37 +153,59 @@ minetest.register_node("sti_machines:gold_washer", {
         local energy = meta:get_int("energy")
         local src_stack = inv:get_stack("src", 1)
 
+        -- 1. Überprüfung auf Input
         if src_stack:is_empty() then
-            meta:set_string("status_msg", "Wartet auf Erde/Sand...")
+            meta:set_string("status_msg", "Wartet auf Material...")
             update_washer_formspec(pos)
             return true
         end
 
-        -- Kosten pro Waschgang: 100mb Wasser + 50 EU
-        if tank >= 100 and energy >= 50 then
-            -- Chance auf Erfolg (Simulation des Waschens)
-            if math.random(1, 5) == 1 then
-                local res = "default:clay_lump"
-                local rand = math.random(1, 100)
+        -- 2. Rezept-Lookup aus der externen Tabelle
+        local input_name = src_stack:get_name()
+        local recipe = sti_machines.washer_recipes[input_name]
 
-                -- Beute-Tabelle basierend auf Wahrscheinlichkeiten
-                if rand > 95 then res = "sti_core:gold_nugget"
-                elseif rand > 90 then res = "sti_core:silver_nugget"
-                elseif rand > 70 then res = "default:clay_lump"
-                elseif rand > 40 then res = "default:gravel"
-                else res = "default:sand" end
+        if not recipe then
+            meta:set_string("status_msg", "Rezept nicht unterstützt!")
+            update_washer_formspec(pos)
+            return true
+        end
 
-                if inv:room_for_item("dst", res) then
-                    inv:add_item("dst", res)
-                    src_stack:take_item(1)
-                    inv:set_stack("src", 1, src_stack)
-                    meta:set_int("tank_amount", tank - 100)
-                    meta:set_int("energy", energy - 50)
+        -- 3. Überprüfung von Ressourcen (Kosten pro Waschgang: 100mb Wasser + 50 EU)
+        if tank < 100 or energy < 50 then
+            meta:set_string("status_msg", "Mangel an Wasser/Strom!")
+            update_washer_formspec(pos)
+            return true
+        end
+
+        -- 4. Platzprüfung im Output für das garantierte Hauptprodukt
+        if not inv:room_for_item("dst", recipe.output) then
+            meta:set_string("status_msg", "Ausgabe voll!")
+            update_washer_formspec(pos)
+            return true
+        end
+
+        -- Wenn alle Bedingungen erfüllt sind, startet der Waschprozess
+        meta:set_string("status_msg", "Wäscht...")
+
+        -- Ressourcen abziehen
+        meta:set_int("tank_amount", tank - 100)
+        meta:set_int("energy", energy - 50)
+
+        -- Input-Item verbrauchen
+        src_stack:take_item(1)
+        inv:set_stack("src", 1, src_stack)
+
+        -- Hauptprodukt dem Ausgangsinventar hinzufügen
+        inv:add_item("dst", recipe.output)
+
+        -- Extra Drops basierend auf ihren individuellen Wahrscheinlichkeiten auswürfeln
+        for _, drop in ipairs(recipe.drops) do
+            if math.random() <= drop.chance then
+                -- Nur hinzufügen, wenn im dst-Inventar noch Platz für den seltenen Drop ist
+                if inv:room_for_item("dst", drop.item) then
+                    inv:add_item("dst", drop.item)
                 end
             end
-            meta:set_string("status_msg", "Wäscht...")
-        else
-            meta:set_string("status_msg", "Mangel an Wasser/Strom!")
         end
 
         update_washer_formspec(pos)
@@ -136,6 +213,7 @@ minetest.register_node("sti_machines:gold_washer", {
     end,
 
     on_metadata_inventory_put = function(pos)
-        minetest.get_node_timer(pos):start(1.0)
+        local timer = minetest.get_node_timer(pos)
+        if not timer:is_started() then timer:start(1.0) end
     end,
 })
