@@ -11,34 +11,53 @@ minetest.log("action", "[st_terrain] Lade realistischen Weltgenerator (Mapgen: "
 
 -------------------------------------------------------------------------------
 -- MAPGEN-ALIASES
--- sti_core:stone wird als Basis-Gestein des Mapgens gesetzt.
--- Wasser und Lava bleiben bei default (falls vorhanden), sonst Fallback.
 -------------------------------------------------------------------------------
 dofile(modpath .. "/aliases.lua")
 
 -------------------------------------------------------------------------------
--- BIOME-DEFINITIONEN
--- Eigene Biome die sti_core-Materialien als Oberfläche nutzen
+-- WICHTIG: BIOME IMMER LADEN!
+-- Die Biome müssen zwingend vor allem anderen registriert werden, damit
+-- Geologie, Erze, Dekorationen und der Custom-Mapgen darauf zugreifen können.
 -------------------------------------------------------------------------------
 dofile(modpath .. "/biomes.lua")
 
 -------------------------------------------------------------------------------
--- GESTEINSSCHICHTEN
--- Stratum- und Blob-Registrierungen für Kalkstein, Granit, Basalt, Böden
--- MUSS vor den Erzen geladen werden!
+-- WEICHE: Singlenode vs. normaler Mapgen
 -------------------------------------------------------------------------------
-dofile(modpath .. "/geology.lua")
 
--------------------------------------------------------------------------------
--- ERZVERTEILUNG
--- Geologisch korrekte Platzierung aller sti_core-Erze
--------------------------------------------------------------------------------
-dofile(modpath .. "/ores.lua")
+if mg_name == "singlenode" then
+    ----------------------------------------------------------------------------
+    -- SINGLENODE-PFAD
+    ----------------------------------------------------------------------------
+    minetest.log("action", "[st_terrain] Singlenode-Modus: Custom Terrain Generator Pipeline aktiv.")
 
--------------------------------------------------------------------------------
--- DEKORATIONEN
--- Oberflächendetails: Steine, Felsbrocken, Gesteinsaufschlüsse
--------------------------------------------------------------------------------
-dofile(modpath .. "/decorations.lua")
+    -- Geologische Schichten
+    dofile(modpath .. "/geology.lua")
+
+    -- Erzverteilung
+    dofile(modpath .. "/ores.lua")
+
+    -- Dekorationen
+    dofile(modpath .. "/decorations.lua")
+
+    -- Custom Terrain Generator (on_generated-Callback)
+    dofile(modpath .. "/mapgen_custom.lua")
+
+else
+    ----------------------------------------------------------------------------
+    -- NORMALER MAPGEN-PFAD (v7, v5, flat, carpathian, …)
+    ----------------------------------------------------------------------------
+    minetest.log("action", "[st_terrain] Normaler Mapgen-Modus (" .. mg_name .. "): Standard-Pipeline aktiv.")
+
+    -- Geologische Schichten
+    dofile(modpath .. "/geology.lua")
+
+    -- Erzverteilung
+    dofile(modpath .. "/ores.lua")
+
+    -- Dekorationen
+    dofile(modpath .. "/decorations.lua")
+
+end
 
 minetest.log("action", "[st_terrain] Weltgenerator vollständig geladen.")

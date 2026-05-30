@@ -25,13 +25,13 @@ local snow_d  = node_or_fallback("default:dirt_with_snow",    "sti_core:loam_gre
 local snowb   = node_or_fallback("default:snowblock",         "sti_core:gravel")
 local ice     = node_or_fallback("default:ice",               "sti_core:stone")
 local drydirt = node_or_fallback("default:dry_dirt_with_dry_grass", "sti_core:loam_red")
-local dess    = node_or_fallback("default:desert_stone",      "sti_core:limestone")
+local dess    = node_or_fallback("default:desert_stone",      "sti_core:stone")
 
 -------------------------------------------------------------------------------
--- GEMÄSSIGTE ZONE
+-- GEMÄSSIGTE / FEUCHTE ZONEN
 -------------------------------------------------------------------------------
 
--- Tiefland-Grasland (fruchtbarer Lehmboden)
+-- Grasland (Mitteleuropäisch standard)
 minetest.register_biome({
     name           = "st_grassland",
     node_top       = grass,
@@ -39,110 +39,105 @@ minetest.register_biome({
     node_filler    = dirt,
     depth_filler   = 3,
     node_stone     = "sti_core:stone",
-    node_water_top = node_or_fallback("default:water_source", "air"),
-    y_max          = 80,
-    y_min          = 5,
+    y_max          = 120,
+    y_min          = 4,
     heat_point     = 50,
     humidity_point = 50,
 })
 
--- Laubwald (brauner Lehmboden, organisch reich)
+-- Laubwald (Etwas feuchter und wärmer als Grasland)
 minetest.register_biome({
     name           = "st_deciduous_forest",
     node_top       = grass,
     depth_top      = 1,
-    node_filler    = "sti_core:loam_brown",
+    node_filler    = dirt,
     depth_filler   = 4,
     node_stone     = "sti_core:stone",
-    node_water_top = node_or_fallback("default:water_source", "air"),
-    y_max          = 120,
-    y_min          = 5,
+    y_max          = 90,
+    y_min          = 3,
     heat_point     = 60,
     humidity_point = 68,
 })
 
--- Sumpf / Feuchtgebiet (Torf oben, dann Lehm)
+-- Sumpf / Bruchwald (Sehr feucht, tief gelegen)
 minetest.register_biome({
     name           = "st_swamp",
-    node_top       = "sti_core:peat",
+    node_top       = "sti_core:silt",
     depth_top      = 2,
     node_filler    = "sti_core:loam_grey",
-    depth_filler   = 5,
+    depth_filler   = 4,
     node_stone     = "sti_core:limestone",
-    node_water_top = node_or_fallback("default:water_source", "air"),
-    y_max          = 3,
-    y_min          = -3,
-    heat_point     = 55,
+    y_max          = 5,
+    y_min          = -1,
+    heat_point     = 58,
     humidity_point = 85,
 })
 
 -------------------------------------------------------------------------------
--- KALTE / ALPINE ZONE
+-- KALTE / ARKTISCHE ZONEN
 -------------------------------------------------------------------------------
 
--- Nadelwald / Taiga (sandig-lehmiger Boden)
+-- Taiga / Nadelwald (Kalt, mäßig feucht)
 minetest.register_biome({
     name           = "st_taiga",
-    node_top       = snow_d,
+    node_top       = "default:dirt_with_coniferous_litter",
     depth_top      = 1,
-    node_filler    = "sti_core:loam_grey",
-    depth_filler   = 3,
-    node_stone     = "sti_core:granite",
-    node_water_top = node_or_fallback("default:water_source", "air"),
-    node_river_water = node_or_fallback("default:river_water_source", "air"),
-    y_max          = 160,
-    y_min          = 5,
-    heat_point     = 25,
-    humidity_point = 60,
-})
-
--- Schneebedecktes Grasland
-minetest.register_biome({
-    name           = "st_snowy_grassland",
-    node_top       = snowb,
-    depth_top      = 1,
-    node_filler    = "sti_core:loam_grey",
+    node_filler    = dirt,
     depth_filler   = 3,
     node_stone     = "sti_core:stone",
-    y_max          = 100,
-    y_min          = 5,
-    heat_point     = 20,
-    humidity_point = 40,
+    y_max          = 250,
+    y_min          = 8,
+    heat_point     = 30,
+    humidity_point = 55,
 })
 
--- Tundra (Permafrost-Analogon: grauer Lehm, kaum Vegetation)
+-- Verschneites Grasland
+minetest.register_biome({
+    name           = "st_snowy_grassland",
+    node_top       = snow_d,
+    depth_top      = 1,
+    node_filler    = dirt,
+    depth_filler   = 2,
+    node_stone     = "sti_core:stone",
+    y_max          = 400,
+    y_min          = 20,
+    heat_point     = 20,
+    humidity_point = 45,
+})
+
+-- Tundra (Sehr kalt, trocken, Permafrost)
 minetest.register_biome({
     name           = "st_tundra",
-    node_top       = "sti_core:gravel_coarse",
+    node_top       = "sti_core:loam_grey",
     depth_top      = 1,
-    node_filler    = "sti_core:loam_grey",
-    depth_filler   = 2,
+    node_filler    = "sti_core:gravel",
+    depth_filler   = 4,
     node_stone     = "sti_core:granite",
-    y_max          = 80,
-    y_min          = 2,
-    heat_point     = 5,
-    humidity_point = 30,
+    y_max          = 1000,
+    y_min          = 15,
+    heat_point     = 10,
+    humidity_point = 25,
 })
 
--- Hochgebirge / Alpine (Granit an Oberfläche, kaum Boden)
+-- Alpine Zone (Hochgebirge, nackter Fels und Geröll)
 minetest.register_biome({
     name           = "st_alpine",
-    node_top       = "sti_core:granite",
-    depth_top      = 1,
-    node_filler    = "sti_core:gravel_coarse",
-    depth_filler   = 2,
+    node_top       = "sti_core:gravel",
+    depth_top      = 2,
+    node_filler    = "sti_core:stone",
+    depth_filler   = 5,
     node_stone     = "sti_core:granite",
     y_max          = 31000,
-    y_min          = 150,
-    heat_point     = 15,
+    y_min          = 120,
+    heat_point     = 25,
     humidity_point = 40,
 })
 
 -------------------------------------------------------------------------------
--- WARME / TROCKENE ZONE
+-- WARME / TROCKENE / TROPISCHE ZONEN
 -------------------------------------------------------------------------------
 
--- Savanne (roter Lehm, trocken)
+-- Savanne (Heiß, wechselfeucht, Laterit-Böden)
 minetest.register_biome({
     name           = "st_savanna",
     node_top       = drydirt,
@@ -150,50 +145,50 @@ minetest.register_biome({
     node_filler    = "sti_core:loam_red",
     depth_filler   = 4,
     node_stone     = "sti_core:stone",
-    y_max          = 100,
-    y_min          = 2,
+    y_max          = 150,
+    y_min          = 5,
     heat_point     = 75,
-    humidity_point = 30,
+    humidity_point = 35,
 })
 
--- Regenwald (sehr fruchtbarer Boden, gelber Lehm unter Oberfläche)
+-- Tropischer Regenwald (Sehr heiß, sehr feucht)
 minetest.register_biome({
     name           = "st_rainforest",
-    node_top       = grass,
+    node_top       = "default:dirt_with_rainforest_litter",
     depth_top      = 1,
-    node_filler    = "sti_core:loam_yellow",
+    node_filler    = "sti_core:loam_brown",
     depth_filler   = 5,
-    node_stone     = "sti_core:stone",
-    y_max          = 120,
+    node_stone     = "sti_core:basalt",
+    y_max          = 100,
     y_min          = 2,
     heat_point     = 85,
-    humidity_point = 90,
+    humidity_point = 85,
 })
 
--- Wüste (Sand oben, Kalkstein unten)
+-- Sandwüste (Heiß, extrem trocken)
 minetest.register_biome({
     name           = "st_desert",
     node_top       = "sti_core:sand",
-    depth_top      = 10,
-    node_filler    = "sti_core:gravel",
-    depth_filler   = 3,
-    node_stone     = "sti_core:limestone",
-    y_max          = 100,
-    y_min          = 2,
-    heat_point     = 95,
+    depth_top      = 3,
+    node_filler    = "sti_core:sand",
+    depth_filler   = 4,
+    node_stone     = dess,
+    y_max          = 1000,
+    y_min          = 3,
+    heat_point     = 85,
     humidity_point = 10,
 })
 
--- Sandstein-Wüste (Kalkstein direkt an Oberfläche, Schotterfüllung)
+-- Felswüste / Badlands (Heiß, trocken, nackter Ton/Kalkstein)
 minetest.register_biome({
     name           = "st_rocky_desert",
-    node_top       = "sti_core:limestone",
+    node_top       = "sti_core:loam_red",
     depth_top      = 1,
-    node_filler    = "sti_core:gravel_coarse",
-    depth_filler   = 3,
+    node_filler    = "sti_core:sandstone",
+    depth_filler   = 6,
     node_stone     = "sti_core:limestone",
-    y_max          = 100,
-    y_min          = 2,
+    y_max          = 1200,
+    y_min          = 10,
     heat_point     = 90,
     humidity_point = 5,
 })
@@ -236,13 +231,23 @@ minetest.register_biome({
     node_top       = "sti_core:sand",
     depth_top      = 2,
     node_filler    = "sti_core:gravel",
-    depth_filler   = 3,
-    node_stone     = "sti_core:basalt",  -- ozeanische Kruste = Basalt
-    y_max          = -5,
+    depth_filler   = 5,
+    node_stone     = "sti_core:basalt",
+    y_max          = -4,
     y_min          = -31000,
     heat_point     = 50,
     humidity_point = 50,
 })
 
-minetest.log("action", "[st_terrain] " ..
-    tostring(#minetest.registered_biomes or 0) .. " Biome registriert.")
+-------------------------------------------------------------------------------
+-- EXPORT FÜR DEN CUSTOM MAPGEN
+-------------------------------------------------------------------------------
+st_terrain = st_terrain or {}
+st_terrain.biome_list = {
+    "st_grassland", "st_deciduous_forest", "st_swamp", "st_taiga",
+    "st_snowy_grassland", "st_tundra", "st_alpine", "st_savanna",
+    "st_rainforest", "st_desert", "st_rocky_desert", "st_beach",
+    "st_mudflat", "st_ocean"
+}
+
+minetest.log("action", "[st_terrain] " .. tostring(#st_terrain.biome_list) .. " Biome erfolgreich für Engine und Mapgen bereitgestellt.")
