@@ -16,3 +16,36 @@
 [submodule "mods/mobs"]
 	path = mods/mobs
 	url = https://codeberg.org/tenplus1/mobs_redo.git
+[submodule "mods/beds"]
+	path = mods/beds
+	url = https://github.com/minetest-game/beds.git
+[submodule "mods/default"]
+	path = mods/default
+	url = https://github.com/minetest-game/default.git
+[submodule "mods/tnt"]
+	path = mods/tnt
+	url = https://github.com/minetest-game/tnt.git
+[submodule "mods/fire"]
+	path = mods/fire
+	url = https://github.com/minetest-game/fire.git
+[submodule "mods/doors"]
+	path = mods/doors
+	url = https://github.com/minetest-game/doors.git
+[submodule "mods/stairs"]
+	path = mods/stairs
+	url = https://github.com/minetest-game/stairs.git
+[submodule "mods/keys"]
+	path = mods/keys
+	url = https://github.com/minetest-game/keys.git
+[submodule "mods/screwdriver"]
+	path = mods/screwdriver
+	url = https://github.com/minetest-game/screwdriver.git
+[submodule "mods/flowers"]
+	path = mods/flowers
+	url = https://github.com/minetest-game/flowers.git
+[submodule "mods/farming"]
+	path = mods/farming
+	url = https://github.com/minetest-game/farming.git
+[submodule "mods/bucket"]
+	path = mods/bucket
+	url = https://github.com/minetest-game/bucket.git
