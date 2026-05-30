@@ -28,7 +28,7 @@ dofile(minetest.get_modpath("sti_core") .. "/elements.lua")
 local densities = {
     [1] = {suffix = "sparse", desc = "Geringe Dichte", yield = 1, texture = "sti_core_ore_sparse.png"},
     [2] = {suffix = "medium", desc = "Mittlere Dichte", yield = 3, texture = "sti_core_ore_medium.png"},
-    [3] = {suffix = "dense",  desc = "Hohe Dichte",      yield = 6, texture = "sti_core_ore_dense.png"},
+    [3] = {suffix = "dense",  desc = "Hohe Dichte",      yield = 5, texture = "sti_core_ore_dense.png"},
 }
 
 -------------------------------------------------------------------------------
@@ -50,13 +50,8 @@ for _, elem in ipairs(elements) do
         sounds = default.node_sound_stone_defaults(),
     })
 
-    -- Rezepte (gleich geblieben)
-    minetest.register_craft({output = "sti_core:lump_" .. elem.name, recipe = {{"sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name}, {"sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name}, {"sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name, "sti_core:nugget_"..elem.name}}})
-    minetest.register_craft({output = "sti_core:nugget_" .. elem.name .. " 9", recipe = {{"sti_core:lump_" .. elem.name}}})
-    minetest.register_craft({type = "cooking", output = "sti_core:ingot_" .. elem.name, recipe = "sti_core:lump_" .. elem.name, cooktime = 5})
-    minetest.register_craft({type = "cooking", output = "sti_core:ingot_" .. elem.name, recipe = "sti_core:powder_" .. elem.name, cooktime = 4})
 end
-
+dofile(minetest.get_modpath("sti_core") .. "/recipes.lua")
 -------------------------------------------------------------------------------
 -- 3. BASIS-BLÖCKE & ERZ-MATRIX
 -------------------------------------------------------------------------------
@@ -88,7 +83,7 @@ for _, mat in ipairs(base_materials) do
                 sounds = mat_sounds,
                 drop = {
                     max_items = d_data.yield,
-                    items = {{items = {"sti_core:nugget_" .. elem.name .. " " .. d_data.yield}}}
+                    items = {{items = {"sti_core:lump_" .. elem.name .. " " .. d_data.yield}}}
                 }
             })
         end

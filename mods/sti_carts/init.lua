@@ -182,3 +182,4 @@ carts:register_rail("sti_carts:hyperspeed_rail", {
 
 local modpath = minetest.get_modpath("sti_carts")
 dofile(modpath .. "/custom_carts.lua")
+dofile(modpath .. "/recipes.lua")

@@ -75,7 +75,7 @@ minetest.register_node("sti_machines:pulverizer", {
         -- Prüfen, ob Material zum Verarbeiten da ist
         if not src:is_empty() then
             local name = src:get_name()
-            local output = name .. "_dust" -- Logik: item_name -> item_name_dust
+            local output = string.gsub(name, "lump", "powder")
 
             -- Prüfen, ob genug Strom da ist
             if energy >= 50 then

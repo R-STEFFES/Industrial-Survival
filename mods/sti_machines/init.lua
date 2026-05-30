@@ -115,5 +115,6 @@ dofile(modpath .. "/fluid_filler.lua")
 dofile(modpath .. "/autocrafter.lua")
 dofile(modpath .. "/gold_washer.lua")
 dofile(modpath .. "/liquid_workbench.lua")
+dofile(modpath .. "/recipes.lua")
 
 minetest.log("action", "[sti_machines] Mod erfolgreich geladen! (Pumpe, Generator, Batterie, E-Ofen)")
