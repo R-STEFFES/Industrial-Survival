@@ -1,13 +1,17 @@
 -- =======================================================================
--- STI MACHINES - FLUID FILLER (ABFÜLLER)
+-- STI MACHINES - FLUID FILLER (ABFÜLLER) - FIXED
 -- =======================================================================
 
 local sides = {"top", "bottom", "front", "back", "left", "right"}
 
+-- Erweiterte Farbdefinitionen (Synchronisiert mit der Goldwaschanlage)
 local function get_side_color(mode)
-    if mode == 1 then return "#3366ff" end -- Blau (Input)
-    if mode == 2 then return "#ffaa00" end -- Orange (Output)
-    return "#555555" -- Grau
+    if mode == 1 then return "#3366ff" end -- Blau (Item Input)
+    if mode == 2 then return "#ffaa00" end -- Orange (Item Output)
+    if mode == 3 then return "#00cc44" end -- Grün (Fluid Input)
+    if mode == 4 then return "#b300b3" end -- Lila (Fluid Output)
+    if mode == 5 then return "#ff3333" end -- Rot (I/O / ME-Interface)
+    return "#555555" -- Grau (Aus)
 end
 
 local function update_filler_formspec(pos)
@@ -29,7 +33,7 @@ local function update_filler_formspec(pos)
         "label[0.5,0.3;--- FLUID FILLER (ABFÜLLER) ---]" ..
         "label[0.5,0.8;Status: " .. status .. "]" ..
 
-        -- Tankanzeige (Analog zur Pumpe)
+        -- Tankanzeige
         "label[0.5,1.3;Interner Tank: " .. tank_amount .. " / " .. tank_max .. " mb]" ..
         "box[0.5,1.7;3.5,0.2;#333333]" ..
         (tank_amount > 0 and "box[0.5,1.7;" .. (tank_amount / tank_max * 3.5) .. ",0.2;#00d4ff]" or "") ..
@@ -46,7 +50,7 @@ local function update_filler_formspec(pos)
         "label[3.5,2.3;Abgefüllt:]" ..
         "list[context;dst;3.5,2.7;1,1;]" ..
 
-        -- Seiten-Konfiguration
+        -- Seiten-Konfiguration (Kompaktes D-Pad behalten, Farben wechseln jetzt durch alle 6 Modi)
         "label[5.5,2.3;Seiten-Konfiguration:]" ..
         "style[btn_top;bgcolor=" .. get_side_color(m_top) .. "]" ..
         "button[6.5,2.8;1.0,0.6;btn_top;Oben]" ..
@@ -75,8 +79,16 @@ minetest.register_node("sti_machines:fluid_filler", {
         "stimachines_machine_side.png", "stimachines_filler_front.png"
     },
     paramtype2 = "facedir",
-    groups = {cracky = 2, machine_fluid = 1, machine_item = 1},
-    is_energy_consumer = true, -- Pflicht: damit push_energy_network ihn findet
+
+    -- FIX: Gruppen erweitert, damit Kabel andocken können
+    groups = {
+        cracky = 2,
+        machine_fluid = 1,
+        machine_item = 1,
+        machine_power = 1,      -- Wichtig für energyduct.lua optische Verbindung
+        technic_machine = 1     -- Zur Absicherung für andere Stromleitungen
+    },
+    is_energy_consumer = true,
 
     on_construct = function(pos)
         local meta = minetest.get_meta(pos)
@@ -85,8 +97,16 @@ minetest.register_node("sti_machines:fluid_filler", {
         inv:set_size("dst", 1)
         meta:set_int("tank_amount", 0)
         meta:set_int("energy", 0)
-        meta:set_int("max_energy", 4000) -- WICHTIG: für push_energy_network
-        meta:set_int("side_top", 1) -- Standard: Oben Input (Blau)
+        meta:set_int("max_energy", 4000)
+
+        -- FIX: Sinnvolle Standard-Automatisierung für einen Abfüller setzen
+        meta:set_int("side_top", 3)    -- Oben standardmäßig FLUID INPUT (Grün) -> Wasser marsch!
+        meta:set_int("side_left", 1)   -- Links standardmäßig ITEM INPUT (Blau) -> Leere Eimer rein
+        meta:set_int("side_right", 2)  -- Rechts standardmäßig ITEM OUTPUT (Orange) -> Volle Eimer raus
+        meta:set_int("side_bottom", 0)
+        meta:set_int("side_front", 0)
+        meta:set_int("side_back", 0)
+
         update_filler_formspec(pos)
     end,
 
@@ -95,10 +115,22 @@ minetest.register_node("sti_machines:fluid_filler", {
         for _, side in ipairs(sides) do
             if fields["btn_" .. side] then
                 local mode = meta:get_int("side_" .. side)
-                meta:set_int("side_" .. side, (mode + 1) % 3)
+                -- FIX: Modus-Umschaltung auf alle 6 Zustände (0 bis 5) erweitert
+                meta:set_int("side_" .. side, (mode + 1) % 6)
                 update_filler_formspec(pos)
             end
         end
+    end,
+
+    -- Logik für Item-Pipelines (analog zur Waschanlage für sauberen Pipeline-Support)
+    allow_metadata_inventory_put = function(pos, listname, index, stack, player)
+        if listname == "src" then return stack:get_count() end
+        return 0
+    end,
+
+    allow_metadata_inventory_take = function(pos, listname, index, stack, player)
+        if listname == "dst" then return stack:get_count() end
+        return 0
     end,
 
     on_timer = function(pos, elapsed)
