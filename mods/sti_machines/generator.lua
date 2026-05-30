@@ -1,6 +1,6 @@
--- =======================================================================
+-- =======================================================
 -- 1. FURNACE GENERATOR (Kohle -> Strom) mit Active-State (Netzwerk-Push)
--- =======================================================================
+-- =======================================================
 
 local function get_fuel_time(itemstack)
     local fuel, _ = minetest.get_craft_result({method = "fuel", width = 1, items = {itemstack}})
@@ -47,7 +47,7 @@ local generator_def = {
     description = "Kohle-Generator",
     paramtype2 = "facedir",
     groups = {cracky = 2, technic_machine = 1, machine_power = 1},
-    is_energy_source = true, -- Direktes Flag für das Kabel
+    is_energy_source = true,
 
     on_construct = function(pos)
         local meta = minetest.get_meta(pos)
@@ -107,7 +107,7 @@ local generator_def = {
             end
         end
 
-        if burning then
+        if burning or burn_time > 0 then
             energy = math.min(energy + production, max_energy)
             meta:set_string("infotext", "Generator: Aktiv (" .. production .. " EU/s)\nEnergie: " .. energy .. " EU")
             if node.name ~= "sti_machines:generator_active" then
@@ -124,9 +124,7 @@ local generator_def = {
         meta:set_int("energy", energy)
         sti_machines.update_generator_formspec(pos)
 
-        -- ====================================================
-        -- NEU: Energie über das Kabelnetzwerk pushen
-        -- ====================================================
+        -- Energie über das Kabelnetzwerk pushen
         if energy > 0 then
             if sti_machines.push_energy_network then
                 local drawn = sti_machines.push_energy_network(pos, energy)
@@ -139,7 +137,9 @@ local generator_def = {
             end
         end
 
-        return (burn_time > 0 or energy > 0)
+        -- FIX 1: Der Timer bleibt AUCH aktiv, wenn noch Kohle im Inventar liegt!
+        local has_fuel = get_fuel_time(inv:get_stack("fuel", 1)) > 0
+        return (burn_time > 0 or energy > 0 or has_fuel)
     end
 }
 
@@ -163,8 +163,6 @@ def_active.groups = {cracky = 2, technic_machine = 1, machine_power = 1, not_in_
 def_active.light_source = 9
 minetest.register_node("sti_machines:generator_active", def_active)
 
--- Diese Funktion wird für den Push-Ansatz eigentlich nicht mehr zwingend benötigt,
--- ich lasse sie aber drin, falls du sie für andere Maschinen (wie Akkus) noch verwendest.
 function sti_machines.draw_energy_from_node(pos, amount)
     local meta = minetest.get_meta(pos)
     if not meta then return 0 end
@@ -180,3 +178,19 @@ function sti_machines.draw_energy_from_node(pos, amount)
 
     return to_draw
 end
+
+-- =======================================================
+-- FIX 2: LBM (Loading Block Modifier)
+-- Startet den Timer neu, sobald die Welt/der Chunk geladen wird
+-- =======================================================
+minetest.register_lbm({
+    name = "sti_machines:rekindle_generators",
+    nodenames = {"sti_machines:generator", "sti_machines:generator_active"},
+    run_at_every_load = true,
+    action = function(pos, node)
+        local timer = minetest.get_node_timer(pos)
+        if not timer:is_started() then
+            timer:start(1.0)
+        end
+    end,
+})
