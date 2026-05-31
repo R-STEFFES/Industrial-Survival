@@ -140,7 +140,7 @@ local function get_biome(heat, humidity, y)
 end
 
 -------------------------------------------------------------------------------
--- ENGINE MONKEY-PATCH (Löst das HUD-Biom-Problem bei Singlenode)
+-- ENGINE MONKEY-PATCH (Lösen des HUD-Biom-Problems bei Singlenode)
 -------------------------------------------------------------------------------
 local original_get_biome_data = minetest.get_biome_data
 local perlin_base, perlin_detail, perlin_hum, perlin_temp
@@ -291,8 +291,17 @@ minetest.register_on_generated(function(minp, maxp, seed)
         end
     end
 
-    -- Daten zurückspeichern und Map-Generierung abschließen
+    -- 1. Basis-Terrain (deine Biome & Tiefengesteine) in den VM laden
     vm:set_data(data)
+
+    -- 2. ENGINE-PIPELINE MANUELL TRIGGERN (Löst dein Erz- & Dekorationen-Problem!)
+    -- Da geology.lua vor ores.lua geladen wird, platziert die Engine hier zuerst
+    -- die Schichten/Blobs (wie Schluff/Silt). Direkt danach sucht sie nach passenden
+    -- Trägergesteinen für Erze – und findet den frisch generierten Schluff im VM!
+    minetest.generate_ores(vm, minp, maxp)
+    minetest.generate_decorations(vm, minp, maxp)
+
+    -- 3. Licht, Flüssigkeiten berechnen und finaler Write-Abfluss
     vm:set_lighting({day = 15, night = 0}, emin, emax)
     vm:calc_lighting()
     vm:update_liquids()
