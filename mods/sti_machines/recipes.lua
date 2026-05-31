@@ -112,3 +112,13 @@ minetest.register_craft({
         {"sti_core:ingot_iron", "sti_core:ingot_copper", "sti_core:ingot_iron"},
     }
 })
+
+-- Quary
+minetest.register_craft({
+    output = "sti_machines:quarry",
+    recipe = {
+        {"sti_core:ingot_iron", "default:chest",         "sti_core:ingot_iron"},
+        {"sti_core:pick_tungsten", "bucket:bucket_empty",   "sti_core:pick_tungsten"},
+        {"sti_core:block_magnesium", "sti_core:block_copper", "sti_core:block_magnesium"},
+    }
+})

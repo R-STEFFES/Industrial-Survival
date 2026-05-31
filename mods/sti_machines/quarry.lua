@@ -9,6 +9,7 @@ local function calculate_dimensions(pos, meta)
     local size_x = meta:get_int("size_x")
     local size_z = meta:get_int("size_z")
     local depth = meta:get_int("depth")
+    local limit_depth = meta:get_string("limit_depth")
 
     local min_x, max_x, min_z, max_z
 
@@ -35,7 +36,13 @@ local function calculate_dimensions(pos, meta)
         max_x = pos.x + math.floor(size_x / 2)
     end
 
-    local min_y = pos.y - depth
+    -- KORREKTUR: Wenn das Limit AUS ist, grabe bis zum Map-Ende (-31000)
+    local min_y
+    if limit_depth == "false" then
+        min_y = -31000
+    else
+        min_y = pos.y - depth
+    end
     local max_y = pos.y
 
     return min_x, max_x, min_y, max_y, min_z, max_z
@@ -87,7 +94,7 @@ function sti_machines.update_quarry_formspec(pos)
         for i = 1, 4 do
             local stack = inv:get_stack("upgrades", i)
             if stack:get_name() == "sti_machines:upgrade_range" then
-                range_cards = range_cards + 1 -- Da unstackable reicht +1 pro Slot
+                range_cards = range_cards + 1
             end
         end
     end
@@ -102,7 +109,7 @@ function sti_machines.update_quarry_formspec(pos)
     elseif status == "digging" then status_msg = "Gräbt..."
     elseif status == "full" then status_msg = "Inventar VOLL! (Warte...)"
     elseif status == "paused" then status_msg = "Pausiert."
-    elseif status == "completed" then status_msg = "Abgesteckt/Fertig."
+    elseif status == "completed" then status_msg = "Arbeit beendet. (Gerüst steht)"
     end
 
     local formspec = "size[8,12.5]" ..
@@ -118,11 +125,14 @@ function sti_machines.update_quarry_formspec(pos)
         formspec = formspec .. "field[4.1,1.5;1.5,1;depth;Tiefe (Y);Unendlich]"
     end
 
-    -- Dynamische Buttons
-    if status == "idle" or status == "completed" then
+    -- Dynamische Buttons je nach Status
+    if status == "idle" then
         formspec = formspec .. "button[6.0,1.2;1.5,0.8;start;Start]"
         local preview_lbl = (preview == "true") and "Vorschau: AN" or "Vorschau: AUS"
         formspec = formspec .. "button[6.0,2.1;1.5,0.6;toggle_preview;" .. preview_lbl .. "]"
+    elseif status == "completed" then
+        formspec = formspec .. "button[6.0,1.2;1.5,0.6;start;Neustart]"
+        formspec = formspec .. "button[6.0,2.0;1.5,0.6;stop;Gerüst räumen]"
     elseif status == "paused" then
         formspec = formspec .. "button[6.0,1.2;1.5,0.6;resume;Fortsetzen]"
         formspec = formspec .. "button[6.0,2.0;1.5,0.6;stop;Stopp (Abbruch)]"
@@ -138,7 +148,7 @@ function sti_machines.update_quarry_formspec(pos)
         "label[0.5,2.7;Status: " .. status_msg .. " (Max. Größe: " .. max_allowed_size .. "x" .. max_allowed_size .. ")]" ..
         "label[0.5,3.2;Energie: " .. energy .. " / " .. max_energy .. " EU]" ..
 
-        -- 4 Upgrade Slots (Kompakter angeordnet)
+        -- 4 Upgrade Slots
         "label[0.5,3.8;Erweiterungen (4 Slots max.):]" ..
         "list[context;upgrades;0.5,4.3;4,1;]" ..
 
@@ -166,7 +176,7 @@ local quarry_def = {
         local meta = minetest.get_meta(pos)
         local inv = meta:get_inventory()
         inv:set_size("dst", 8)
-        inv:set_size("upgrades", 4) -- Auf 4 Slots reduziert!
+        inv:set_size("upgrades", 4)
 
         meta:set_int("energy", 0)
         meta:set_int("max_energy", 60000)
@@ -195,7 +205,7 @@ local quarry_def = {
 
             if status ~= "idle" and status ~= "completed" then
                 if stack:get_name() == "sti_machines:upgrade_range" then
-                    return 0 -- Sperre Range im Betrieb
+                    return 0
                 end
             end
 
@@ -213,7 +223,7 @@ local quarry_def = {
             local status = meta:get_string("status")
             if status ~= "idle" and status ~= "completed" then
                 if stack:get_name() == "sti_machines:upgrade_range" then
-                    return 0 -- Lock Range Upgrade
+                    return 0
                 end
             end
         end
@@ -299,6 +309,7 @@ local quarry_def = {
 
         -- START
         if fields.start and (status == "idle" or status == "completed") then
+            clear_quarry_frames(pos, meta)
             meta:set_string("preview_enabled", "false")
 
             local min_x, max_x, min_y, max_y, min_z, max_z = calculate_dimensions(pos, meta)
@@ -326,7 +337,7 @@ local quarry_def = {
                 table.insert(frame_positions, {x=f_max_x, y=pos.y, z=z})
             end
 
-            -- Oberer Ring (Aufhängungshöhe pos.y + 3)
+            -- Oberer Ring
             for x = f_min_x, f_max_x do
                 table.insert(frame_positions, {x=x, y=pos.y + 3, z=f_min_z})
                 table.insert(frame_positions, {x=x, y=pos.y + 3, z=f_max_z})
@@ -347,7 +358,6 @@ local quarry_def = {
             meta:set_string("frame_queue", minetest.serialize(frame_positions))
             meta:set_int("frame_index", 1)
 
-            -- Initialwerte Abbau
             meta:set_int("cur_x", min_x)
             meta:set_int("cur_y", pos.y - 1)
             meta:set_int("cur_z", min_z)
@@ -374,7 +384,7 @@ local quarry_def = {
         local node = minetest.get_node(pos)
         local preview = meta:get_string("preview_enabled") == "true"
 
-        -- Vorschau-Modus (Grüne Punkte lückenlos)
+        -- Vorschau-Modus
         if status == "idle" or status == "completed" then
             if preview then
                 local min_x, max_x, _, _, min_z, max_z = calculate_dimensions(pos, meta)
@@ -400,7 +410,7 @@ local quarry_def = {
                     spawn_preview_dot({x=x, y=bottom_y, z=f_min_z})
                     spawn_preview_dot({x=x, y=bottom_y, z=f_max_z})
                     spawn_preview_dot({x=x, y=top_y, z=f_min_z})
-                    spawn_preview_dot({x=x, y=top_y, z=f_max_z})
+                    spawn_preview_dot({x=top_y, y=top_y, z=f_max_z})
                 end
                 for z = f_min_z + 1, f_max_z - 1 do
                     spawn_preview_dot({x=f_min_x, y=bottom_y, z=z})
@@ -464,7 +474,7 @@ local quarry_def = {
                 if space_found then status = "digging"; meta:set_string("status", "digging") end
             end
 
-            -- Loop-Abarbeitung mit Geschwindigkeitskarten (1 bis 4)
+            -- Loop-Abarbeitung mit Geschwindigkeitskarten
             if status == "building" or status == "clearing" or status == "digging" then
                 local speed_boost = 0
                 local energy_boost = 0
@@ -536,7 +546,6 @@ local quarry_def = {
                                 meta:set_int("frame_index", idx + 1)
                             end
                         else
-                            -- Wechsel in NEUE Phase: Freiräumung des Volumens
                             status = "clearing"
                             meta:set_string("status", "clearing")
                             meta:set_int("clear_x", meta:get_int("min_x"))
@@ -544,7 +553,7 @@ local quarry_def = {
                             meta:set_int("clear_z", meta:get_int("min_z"))
                         end
 
-                    -- PHASE 2: Volumen innerhalb des Rahmens komplett leeren (Nur Luft erlaubt!)
+                    -- PHASE 2: Innenraum leeren
                     elseif status == "clearing" then
                         local cx = meta:get_int("clear_x")
                         local cy = meta:get_int("clear_y")
@@ -590,7 +599,6 @@ local quarry_def = {
                                         cz = min_z
                                         cy = cy + 1
                                         if cy > pos.y + 3 then
-                                            -- Jetzt ist alles frei! Bohrvorgang nach unten darf starten
                                             status = "digging"
                                             meta:set_string("status", "digging")
                                         end
@@ -604,7 +612,7 @@ local quarry_def = {
                         meta:set_int("clear_y", cy)
                         meta:set_int("clear_z", cz)
 
-                    -- PHASE 3: Normales Bohren (Nach unten)
+                    -- PHASE 3: Bohren nach unten
                     elseif status == "digging" then
                         local cur_x = meta:get_int("cur_x")
                         local cur_y = meta:get_int("cur_y")
@@ -654,7 +662,6 @@ local quarry_def = {
                                         if cur_y < min_y then
                                             status = "completed"
                                             meta:set_string("status", "completed")
-                                            clear_quarry_frames(pos, meta)
                                         end
                                     end
                                 end
@@ -681,7 +688,7 @@ local quarry_def = {
             end
         end
 
-        -- Spawnen der Entitäten falls sie fehlen (Steuerung läuft komplett flüssig via on_step)
+        -- Gantry-Entitäten managen
         if status == "clearing" or status == "clearing_full" or status == "digging" or status == "full" or status == "paused" then
             local gantry_x_obj, carrier_obj, pipe_obj
             for _, obj in ipairs(minetest.get_objects_inside_radius(pos, 30)) do
@@ -724,7 +731,7 @@ local quarry_def = {
 }
 
 -- =======================================================================
--- GANTRY ENTITÄTEN: FLÜSSIGE BEWEGUNG UND SCHUTZ VOR GRAFIK-ARTEFAKTEN
+-- GANTRY ENTITÄTEN DEFINITIONEN
 -- =======================================================================
 
 local entity_base = {
@@ -739,7 +746,7 @@ local entity_base = {
     end,
 }
 
--- 1. X-Achsen Schiene (Gantry X)
+-- Gantry X
 local gantry_x_def = table.copy(entity_base)
 gantry_x_def.initial_properties = {
     visual = "cube",
@@ -765,7 +772,6 @@ gantry_x_def.on_step = function(self, dtime)
     local target_z = (status == "clearing" or status == "clearing_full") and meta:get_int("clear_z") or meta:get_int("cur_z")
     local center_x = (min_x + max_x) / 2
 
-    -- SET PROPERTIES NUR EINMAL AUFRUFEN (Verhindert Flackern/Artefakte!)
     if not self.initialized_size then
         local size_x = (max_x - min_x) + 1
         self.object:set_properties({ visual_size = {x = size_x, y = 0.2, z = 0.2} })
@@ -778,7 +784,7 @@ gantry_x_def.on_step = function(self, dtime)
         local dist = vector.distance(pos, target)
         if dist > 0.02 then
             local dir = vector.direction(pos, target)
-            self.object:set_velocity(vector.multiply(dir, math.min(15, dist * 8))) -- Flüssiges Anfahren/Abbremsen
+            self.object:set_velocity(vector.multiply(dir, math.min(15, dist * 8)))
         else
             self.object:set_velocity({x=0, y=0, z=0})
             self.object:set_pos(target)
@@ -787,7 +793,7 @@ gantry_x_def.on_step = function(self, dtime)
 end
 minetest.register_entity("sti_machines:gantry_x", gantry_x_def)
 
--- 2. Laufkatze (Gantry Carrier)
+-- Gantry Carrier
 local gantry_carrier_def = table.copy(entity_base)
 gantry_carrier_def.initial_properties = {
     visual = "cube",
@@ -813,7 +819,7 @@ gantry_carrier_def.on_step = function(self, dtime)
     if status == "clearing" or status == "clearing_full" then
         target_x = meta:get_int("clear_x")
         target_z = meta:get_int("clear_z")
-        top_y = meta:get_int("clear_y") + 0.5 -- Verfolgt das Freiräumen direkt visuell
+        top_y = meta:get_int("clear_y") + 0.5
     else
         target_x = meta:get_int("cur_x")
         target_z = meta:get_int("cur_z")
@@ -834,7 +840,7 @@ gantry_carrier_def.on_step = function(self, dtime)
 end
 minetest.register_entity("sti_machines:gantry_carrier", gantry_carrier_def)
 
--- 3. Bohrstange (Drill Pipe)
+-- Drill Pipe
 local drill_pipe_def = table.copy(entity_base)
 drill_pipe_def.initial_properties = {
     visual = "cube",
@@ -851,7 +857,6 @@ drill_pipe_def.on_step = function(self, dtime)
     local meta = minetest.get_meta(self.quarry_pos)
     local status = meta:get_string("status")
 
-    -- Ausblenden oder Löschen während dem Freiräumen, da noch kein Tiefen-Bohren stattfindet
     if status == "clearing" or status == "clearing_full" then
         self.object:set_properties({ visual_size = {x = 0, y = 0, z = 0} })
         return
@@ -867,7 +872,6 @@ drill_pipe_def.on_step = function(self, dtime)
     local height = top_y - cur_y
     if height < 0.1 then height = 0.1 end
 
-    -- Nur neu skalieren, wenn sich die Tiefe wirklich geändert hat!
     if not self.last_height or math.abs(self.last_height - height) > 0.05 then
         self.object:set_properties({ visual_size = {x = 0.15, y = height, z = 0.15} })
         self.last_height = height
@@ -889,7 +893,7 @@ end
 minetest.register_entity("sti_machines:drill_pipe", drill_pipe_def)
 
 -- =======================================================================
--- REGISTRIERUNG RAHMEN-NODE & QUARRY NODES
+-- BLÖCKE REGISTRIERUNG
 -- =======================================================================
 
 minetest.register_node("sti_machines:quarry_frame", {
@@ -922,7 +926,7 @@ minetest.register_node("sti_machines:quarry", q_inactive)
 
 local q_active = table.copy(quarry_def)
 q_active.tiles = {
-	"stimachines_machine_top.png",    "stimachines_machine_bottom.png",
+    "stimachines_machine_top.png",    "stimachines_machine_bottom.png",
     "stimachines_machine_side.png",   "stimachines_machine_side.png",
     "stimachines_machine_side.png",   "stimachines_quarry_front_active.png"
 }
@@ -930,20 +934,17 @@ q_active.groups = {cracky = 2, technic_machine = 1, machine_item = 1, not_in_cre
 q_active.light_source = 7
 minetest.register_node("sti_machines:quarry_active", q_active)
 
--- =======================================================================
--- CRAFTITEMS REGISTRIERUNG (UNSTAPELBAR: stack_max = 1)
--- =======================================================================
-
+-- UPGRADES
 for i = 1, 10 do
     minetest.register_craftitem("sti_machines:upgrade_speed_" .. i, {
         description = "Quarry Geschwindigkeits-Upgrade (Stufe " .. i .. ")\n+ " .. (i * 10) .. "% Tempo, + " .. (i * 20) .. "% Stromverbrauch",
         inventory_image = "stimachines_upgrade_speed.png^[colorize:#ff0000:" .. math.floor(i * 25.5),
-        stack_max = 1, -- Verhindert das Stapeln im Inventar komplett!
+        stack_max = 1,
     })
 end
 
 minetest.register_craftitem("sti_machines:upgrade_range", {
     description = "Quarry Reichweiten-Upgrade\nVerdoppelt die maximale Baugröße",
     inventory_image = "stimachines_upgrade_range.png^[colorize:#0000ff:150",
-    stack_max = 1, -- Verhindert das Stapeln im Inventar komplett!
+    stack_max = 1,
 })
