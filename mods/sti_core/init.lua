@@ -2,12 +2,12 @@
 sti_core = {}
 
 -------------------------------------------------------------------------------
--- 1. EXTERNE DATEN UND MATERIALIEN LADEN
+-- 1. EXTERNE DATEN UND MATERIALIEN LADEN (Muss ganz nach oben!)
 -------------------------------------------------------------------------------
 local modpath = minetest.get_modpath("sti_core")
 
 dofile(modpath .. "/materials.lua")
-dofile(modpath .. "/elements.lua")
+dofile(modpath .. "/elements.lua") -- Lädt die globale "elements"-Tabelle
 
 local densities = {
     [1] = {suffix = "sparse", desc = "Geringe Dichte", yield = 1, texture = "sti_core_ore_sparse.png"},
@@ -72,13 +72,22 @@ for _, mat in ipairs(sti_core.base_materials) do
 end
 
 -------------------------------------------------------------------------------
--- 4. DROP-OVERRIDES FÜR FARBIGEN LEHM
+-- 4. DROP-OVERRIDES & BRENNSTOFFE (LEHM & TORF)
 -------------------------------------------------------------------------------
--- Erst nach der Registrierung der Basis-Knoten können wir deren Drop-Verhalten überschreiben
 minetest.override_item("sti_core:loam_brown",  { drop = "sti_core:clay_raw_brown 4" })
 minetest.override_item("sti_core:loam_yellow", { drop = "sti_core:clay_raw_yellow 4" })
 minetest.override_item("sti_core:loam_red",    { drop = "sti_core:clay_raw_red 4" })
 minetest.override_item("sti_core:loam_grey",   { drop = "sti_core:clay_raw_grey 4" })
+
+-- Torf blockiert den Eigendrop und wirft stattdessen 4 Torfstücke ab
+minetest.override_item("sti_core:peat",        { drop = "sti_core:peat_piece 4" })
+
+-- Torfstück als Brennstoff definieren
+minetest.register_craft({
+    type = "fuel",
+    recipe = "sti_core:peat_piece",
+    burntime = 15,
+})
 
 -------------------------------------------------------------------------------
 -- 5. TOOLS & ARMOR

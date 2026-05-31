@@ -14,7 +14,8 @@ for _, elem in ipairs(elements) do
     }
 
     for _, t in ipairs(tools) do
-        local tool_texture = "sti_core_tool_head_" .. t[1] .. ".png^[multiply:" .. elem.color .. "^sti_core_tool_handle.png"
+        -- DYNAMISCHER STIEL: Baut den Handle-Dateinamen passend zum Werkzeugtyp (t[1])
+        local tool_texture = "sti_core_tool_head_" .. t[1] .. ".png^[multiply:" .. elem.color .. "^sti_core_" .. t[1] .. "_handle.png"
 
         minetest.register_tool("sti_core:" .. t[1] .. "_" .. elem.name, {
             description = elem.desc .. " " .. t[2],
@@ -34,7 +35,7 @@ for _, elem in ipairs(elements) do
         })
     end
 
----------------------------------------------------------------------------
+    ---------------------------------------------------------------------------
     -- 2. RÜSTUNGEN REGISTRIEREN (Der saubere Luanti-Texture-Hack)
     ---------------------------------------------------------------------------
     local armor_types = {
@@ -47,13 +48,10 @@ for _, elem in ipairs(elements) do
     for _, arm in ipairs(armor_types) do
         local armor_name = "sti_core:" .. arm.suffix .. "_" .. elem.name
 
-        -- Das Inventar-Icon (Klappt immer direkt)
+        -- Das Inventar-Icon
         local inv_image = "sti_core_inv_" .. arm.suffix .. ".png^[multiply:" .. elem.color
 
-        -- DER NEUE TRICK:
-        -- 3d_armor macht daraus am Ende: "sti_core_armor_helmet.png^[multiply:#39ff14^[combine:1x1:0,0=blank.png.png"
-        -- Luanti liest das "blank.png.png" als Bilddatei für das Combine-Overlay ein.
-        -- Die Rüstung bleibt farbig und die Konsole ist absolut fehlerfrei!
+        -- Der 3d_armor Konsolen-Fehler-Fix
         local dynamic_texture = "sti_core_armor_" .. arm.suffix .. ".png^[multiply:" .. elem.color .. "^[combine:1x1:0,0=blank"
         local dynamic_preview = "sti_core_preview_" .. arm.suffix .. ".png^[multiply:" .. elem.color .. "^[combine:1x1:0,0=blank"
 
@@ -61,7 +59,6 @@ for _, elem in ipairs(elements) do
             description = elem.desc .. " " .. arm.desc,
             inventory_image = inv_image,
 
-            -- Wir übergeben die manipulierten Strings direkt in die Felder
             texture = dynamic_texture,
             preview = dynamic_preview,
 

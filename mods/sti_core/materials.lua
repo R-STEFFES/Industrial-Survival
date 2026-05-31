@@ -58,3 +58,9 @@ for _, c in ipairs(clay_colors) do
         sounds = default.node_sound_stone_defaults(),
     })
 end
+
+-- Rohes Torfstück (Drop beim Abbauen & Brennstoff)
+minetest.register_craftitem("sti_core:peat_piece", {
+    description = "Torfstück",
+    inventory_image = "sti_core_peat_lump.png",
+})
