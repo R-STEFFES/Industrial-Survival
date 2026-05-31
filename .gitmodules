@@ -10,9 +10,6 @@
 [submodule "mods/animalworld"]
 	path = mods/animalworld
 	url = https://github.com/Skandarella/animalworld.git
-[submodule "mods/animalworld-main"]
-	path = mods/animalworld-main
-	url = https://github.com/Skandarella/animalworld.git
 [submodule "mods/mobs"]
 	path = mods/mobs
 	url = https://codeberg.org/tenplus1/mobs_redo.git
