@@ -82,7 +82,7 @@ end
 reg3("sti_core:granite",     "gold",  -80,  -600, 16)
 reg3("sti_core:granite",     "gold", -600, -31000, 13)
 reg3("sti_core:stone",       "gold",    0,   -100, 19)
-reg3("sti_core:clay",        "gold",  200,    -15, 16) -- Gold in Tonlinsen
+reg3("sti_core:clay",        "gold",  200,    -15, 18) -- Gold in Tonlinsen
 reg3("sti_core:sand",        "gold",  200,    -15, 14) -- Flussseifen
 reg3("sti_core:gravel",      "gold",  200,    -15, 15)
 reg3("sti_core:silt",        "gold",  200,    -15, 17)
