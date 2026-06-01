@@ -23,11 +23,37 @@ local function get_node_id(nodename, fallback)
     return minetest.get_content_id("air")
 end
 
-local c_air     = get_node_id("air")
-local c_water   = get_node_id("mapgen_water_source", "default:water_source")
-local c_stone   = get_node_id("sti_core:stone")
-local c_basalt  = get_node_id("sti_core:basalt")
-local c_granite = get_node_id("sti_core:granite")
+local c_air           = get_node_id("air")
+local c_water         = get_node_id("mapgen_water_source", "default:water_source")
+local c_stone         = get_node_id("sti_core:stone")
+local c_basalt        = get_node_id("sti_core:basalt")
+local c_granite       = get_node_id("sti_core:granite")
+
+-- DYNAMISCHES KRISTALL-ARRAY (Ersetzt die alten 3 festen Kristall-Variablen)
+local crystal_ids = {}
+
+minetest.register_on_mods_loaded(function()
+    -- Lädt alle 16 Farben dynamisch aus sti_core.crystals
+    if sti_core and sti_core.crystals then
+        for _, nodename in ipairs(sti_core.crystals) do
+            local id = minetest.get_content_id(nodename)
+            if id then
+                table.insert(crystal_ids, id)
+            end
+        end
+    end
+
+    -- Absicherung/Fallback: Falls die neue crystals.lua (noch) nicht aktiv ist
+    if #crystal_ids == 0 then
+        local fallbacks = {"sti_core:crystal_red", "sti_core:crystal_blue", "sti_core:crystal_green"}
+        for _, name in ipairs(fallbacks) do
+            local id = get_node_id(name, "air")
+            if id ~= c_air then
+                table.insert(crystal_ids, id)
+            end
+        end
+    end
+end)
 
 local SEA_LEVEL = 0
 local cached_biomes = {}
@@ -113,6 +139,18 @@ local NP_TEMPERATURE = {
     persist    = 0.55,
 }
 
+-- 3D-Noise für fließende Höhlensysteme (Caverns)
+local NP_CAVES = {
+    offset     = 0,
+    scale      = 1,
+    spread     = {x = 60, y = 45, z = 60}, -- Eine geringere Y-Streuung macht Höhlen flacher und begehbarer
+    seed       = 2468,
+    octaves    = 4,
+    persist    = 0.55,
+    lacunarity = 2.0,
+    flags      = "defaults",
+}
+
 -------------------------------------------------------------------------------
 -- VORONOI BIOM-FINDER (Exakt wie die Minetest-Engine)
 -------------------------------------------------------------------------------
@@ -193,8 +231,8 @@ end
 -------------------------------------------------------------------------------
 -- MAPGEN-CALLBACK
 -------------------------------------------------------------------------------
-local nm_base, nm_detail, nm_hum, nm_temp
-local last_sx, last_sz = 0, 0
+local nm_base, nm_detail, nm_hum, nm_temp, nm_caves
+local last_sx, last_sz, last_sy = 0, 0, 0
 
 minetest.register_on_generated(function(minp, maxp, seed)
     local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
@@ -204,15 +242,18 @@ minetest.register_on_generated(function(minp, maxp, seed)
 
     local sx = maxp.x - minp.x + 1
     local sz = maxp.z - minp.z + 1
+    local sy = maxp.y - minp.y + 1 -- Höhe für die 3D Map
 
     -- Noise-Maps bei Chunkgrößenänderung initialisieren
-    if sx ~= last_sx or sz ~= last_sz then
-        local dims = {x = sx, y = sz, z = 1}
-        nm_base   = minetest.get_perlin_map(NP_TERRAIN_BASE,   dims)
-        nm_detail = minetest.get_perlin_map(NP_TERRAIN_DETAIL, dims)
-        nm_hum    = minetest.get_perlin_map(NP_HUMIDITY,       dims)
-        nm_temp   = minetest.get_perlin_map(NP_TEMPERATURE,    dims)
-        last_sx, last_sz = sx, sz
+    if sx ~= last_sx or sz ~= last_sz or sy ~= last_sy then
+        local dims2d = {x = sx, y = sz, z = 1}
+        local dims3d = {x = sx, y = sy, z = sz} -- 3D Dimensionen
+        nm_base   = minetest.get_perlin_map(NP_TERRAIN_BASE,   dims2d)
+        nm_detail = minetest.get_perlin_map(NP_TERRAIN_DETAIL, dims2d)
+        nm_hum    = minetest.get_perlin_map(NP_HUMIDITY,       dims2d)
+        nm_temp   = minetest.get_perlin_map(NP_TEMPERATURE,    dims2d)
+        nm_caves  = minetest.get_perlin_map(NP_CAVES,          dims3d) -- 3D Map initialisieren
+        last_sx, last_sz, last_sy = sx, sz, sy
     end
 
     local pos2d = {x = minp.x, y = minp.z}
@@ -220,6 +261,7 @@ minetest.register_on_generated(function(minp, maxp, seed)
     local nv_detail = nm_detail:get_2d_map_flat(pos2d)
     local nv_hum    = nm_hum:get_2d_map_flat(pos2d)
     local nv_temp   = nm_temp:get_2d_map_flat(pos2d)
+    local nv_caves  = nm_caves:get_3d_map_flat(minp) -- Holt die flache 3D-Tabelle
 
     for zi = 0, sz - 1 do
         for xi = 0, sx - 1 do
@@ -253,51 +295,90 @@ minetest.register_on_generated(function(minp, maxp, seed)
                 biome_map[ni] = biome.engine_id
             end
 
+            -- Zustandstracker für den Höhlenboden (Spaltenlauf von unten nach oben)
+            local was_solid = true
+
             -- Spaltenweise Befüllung der Nodes von unten nach oben
             for y = emin.y, emax.y do
                 local vi = area:index(x, y, z)
+                local node_to_place = c_air
+                local current_is_solid = false
 
                 if y > surface_y then
                     -- Über der Oberfläche: Wasser oder Luft
                     if y <= SEA_LEVEL then
-                        data[vi] = c_water
+                        node_to_place = c_water
                     else
-                        data[vi] = c_air
+                        node_to_place = c_air
                     end
                 elseif y == surface_y then
                     -- Exakt auf der Oberfläche
                     if surface_y < SEA_LEVEL then
-                        data[vi] = biome.stone
+                        node_to_place = biome.stone
                     else
-                        data[vi] = biome.top
+                        node_to_place = biome.top
                     end
+                    current_is_solid = true
                 elseif y > surface_y - biome.top_depth then
                     -- Obere Deckschicht (node_top)
-                    data[vi] = biome.top
+                    node_to_place = biome.top
+                    current_is_solid = true
                 elseif y > surface_y - biome.top_depth - biome.filler_depth then
                     -- Füllschicht (node_filler)
-                    data[vi] = biome.filler
+                    node_to_place = biome.filler
+                    current_is_solid = true
                 else
                     -- Geologische Tiefenschichten
+                    current_is_solid = true
                     if y < -400 then
-                        data[vi] = (biome.stone == c_basalt) and c_basalt or c_granite
+                        node_to_place = (biome.stone == c_basalt) and c_basalt or c_granite
                     elseif y < -80 then
-                        data[vi] = biome.stone
+                        node_to_place = biome.stone
                     else
-                        data[vi] = c_stone
+                        node_to_place = c_stone
                     end
+                end
+
+                -- Höhlen-Check via 3D-Noise (Nur innerhalb des echten Chunks und unterhalb der Oberfläche)
+                local is_cave = false
+                if current_is_solid and y >= minp.y and y <= maxp.y and y < surface_y - 5 then
+                    local yi = y - minp.y
+                    -- Index-Berechnung für flache 3D-Tabellen in Luanti (Z-Y-X Layout)
+                    local ni3d = zi * sx * sy + yi * sx + xi + 1
+
+                    -- Threshold bestimmt die Höhlendichte (> 0.60 sorgt für schöne Gänge)
+                    if nv_caves[ni3d] and nv_caves[ni3d] > 0.60 then
+                        is_cave = true
+                    end
+                end
+
+                -- Zuweisung und Kristall-Platzierung
+                if is_cave then
+                    data[vi] = c_air
+
+                    -- Wenn die Schicht direkt darunter fest war, stehen wir auf einem Höhlenboden!
+                    if was_solid then
+                        -- Deterministischer Pseudo-Zufall basierend auf Koordinaten
+                        local pseudo_rand = (x * 17 + y * 31 + z * 43) % 100
+                        if pseudo_rand < 6 and #crystal_ids > 0 then -- 6% Chance auf ein leuchtendes Objekt
+                            -- Wählt mathematisch stabil eine der 16 geladenen Kristall-IDs aus
+                            local c_idx = (math.abs(x + y + z) % #crystal_ids) + 1
+                            data[vi] = crystal_ids[c_idx]
+                        end
+                    end
+                    was_solid = false -- Luft/Kristalle sind nicht solide
+                else
+                    data[vi] = node_to_place
+                    was_solid = current_is_solid
                 end
             end
         end
     end
 
-    -- 1. Basis-Terrain (deine Biome & Tiefengesteine) in den VM laden
+    -- 1. Basis-Terrain (deine Biome, Tiefengesteine, Höhlen & Kristalle) in den VM laden
     vm:set_data(data)
 
-    -- 2. ENGINE-PIPELINE MANUELL TRIGGERN (Löst dein Erz- & Dekorationen-Problem!)
-    -- Da geology.lua vor ores.lua geladen wird, platziert die Engine hier zuerst
-    -- die Schichten/Blobs (wie Schluff/Silt). Direkt danach sucht sie nach passenden
-    -- Trägergesteinen für Erze – und findet den frisch generierten Schluff im VM!
+    -- 2. ENGINE-PIPELINE MANUELL TRIGGERN (Erz- & Dekorationen-Platzierung)
     minetest.generate_ores(vm, minp, maxp)
     minetest.generate_decorations(vm, minp, maxp)
 

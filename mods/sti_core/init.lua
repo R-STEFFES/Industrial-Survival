@@ -71,6 +71,9 @@ for _, mat in ipairs(sti_core.base_materials) do
     end
 end
 
+-- NEU: Externe Kristall-Registrierung laden
+dofile(modpath .. "/crystals.lua")
+
 -------------------------------------------------------------------------------
 -- 4. DROP-OVERRIDES & BRENNSTOFFE (LEHM & TORF)
 -------------------------------------------------------------------------------
@@ -94,4 +97,4 @@ minetest.register_craft({
 -------------------------------------------------------------------------------
 dofile(modpath .. "/tools_armor.lua")
 
-print("[sti_core] Erzmatrix und Materialsystem erfolgreich geladen!")
+print("[sti_core] Erzmatrix, Materialsystem und Kristallsystem erfolgreich geladen!")
