@@ -30,7 +30,6 @@ local c_stone         = get_node_id("sti_core:stone")
 local c_basalt        = get_node_id("sti_core:basalt")
 local c_granite       = get_node_id("sti_core:granite")
 
--- DYNAMISCHES KRISTALL-ARRAY
 local crystal_ids = {}
 
 minetest.register_on_mods_loaded(function()
@@ -45,7 +44,7 @@ minetest.register_on_mods_loaded(function()
 
     if #crystal_ids == 0 then
         local fallbacks = {"sti_core:crystal_red", "sti_core:crystal_blue", "sti_core:crystal_green"}
-        for _, name in ipbacks do
+        for _, name in ipairs(fallbacks) do
             local id = get_node_id(name, "air")
             if id ~= c_air then
                 table.insert(crystal_ids, id)
@@ -135,26 +134,37 @@ local NP_TEMPERATURE = {
     persist    = 0.55,
 }
 
--- 1. SYSTEM: Verbindungshöhlen (Tunnel von Oberfläche bis -850)
-local NP_CAVES_UPPER = {
+-- MINECRAFT TUNNEL-CAVES (Eng, schmal, verwinkelt)
+local NP_CAVES_A = {
     offset     = 0,
     scale      = 1,
-    spread     = {x = 55, y = 40, z = 55},  -- Etwas größerer Spread für längere Tunnelketten
+    spread     = {x = 32, y = 32, z = 32},
     seed       = 2468,
     octaves    = 3,
-    persist    = 0.60,
+    persist    = 0.50,
     lacunarity = 2.0,
     flags      = "defaults",
 }
 
--- 2. SYSTEM: Gigantische Nether-Hallen (Erst ab -800 abwärts)
-local NP_CAVES_DEEP = {
+local NP_CAVES_B = {
     offset     = 0,
     scale      = 1,
-    spread     = {x = 220, y = 90, z = 220}, -- Gewaltiger Spread für epische Höhlendimensionen
-    seed       = 9112,
+    spread     = {x = 32, y = 32, z = 32},
+    seed       = 11023,
+    octaves    = 3,
+    persist    = 0.50,
+    lacunarity = 2.0,
+    flags      = "defaults",
+}
+
+-- NETHER-HÖHLEN AB -1000 (Riesige Hallenstrukturen)
+local NP_GIANT_CAVES = {
+    offset     = 0,
+    scale      = 1,
+    spread     = {x = 220, y = 140, z = 220},
+    seed       = 78542,
     octaves    = 4,
-    persist    = 0.60,
+    persist    = 0.55,
     lacunarity = 2.0,
     flags      = "defaults",
 }
@@ -233,13 +243,14 @@ end
 -------------------------------------------------------------------------------
 -- MAPGEN-CALLBACK
 -------------------------------------------------------------------------------
-local nm_base, nm_detail, nm_hum, nm_temp, nm_caves_upper, nm_caves_deep
+local nm_base, nm_detail, nm_hum, nm_temp, nm_caves_a, nm_caves_b, nm_giant
 local last_sx, last_sz, last_sy = 0, 0, 0
 
 minetest.register_on_generated(function(minp, maxp, seed)
     local vm, emin, emax = minetest.get_mapgen_object("voxelmanip")
     local area = VoxelArea:new{MinEdge = emin, MaxEdge = emax}
     local data = vm:get_data()
+    local light = vm:get_light_data()
     local biome_map = minetest.get_mapgen_object("biomemap")
 
     local sx = maxp.x - minp.x + 1
@@ -249,22 +260,24 @@ minetest.register_on_generated(function(minp, maxp, seed)
     if sx ~= last_sx or sz ~= last_sz or sy ~= last_sy then
         local dims2d = {x = sx, y = sz, z = 1}
         local dims3d = {x = sx, y = sy, z = sz}
-        nm_base        = minetest.get_perlin_map(NP_TERRAIN_BASE,   dims2d)
-        nm_detail      = minetest.get_perlin_map(NP_TERRAIN_DETAIL, dims2d)
-        nm_hum         = minetest.get_perlin_map(NP_HUMIDITY,       dims2d)
-        nm_temp        = minetest.get_perlin_map(NP_TEMPERATURE,    dims2d)
-        nm_caves_upper = minetest.get_perlin_map(NP_CAVES_UPPER,    dims3d)
-        nm_caves_deep  = minetest.get_perlin_map(NP_CAVES_DEEP,     dims3d)
+        nm_base   = minetest.get_perlin_map(NP_TERRAIN_BASE,   dims2d)
+        nm_detail = minetest.get_perlin_map(NP_TERRAIN_DETAIL, dims2d)
+        nm_hum    = minetest.get_perlin_map(NP_HUMIDITY,       dims2d)
+        nm_temp   = minetest.get_perlin_map(NP_TEMPERATURE,    dims2d)
+        nm_caves_a = minetest.get_perlin_map(NP_CAVES_A,       dims3d)
+        nm_caves_b = minetest.get_perlin_map(NP_CAVES_B,       dims3d)
+        nm_giant   = minetest.get_perlin_map(NP_GIANT_CAVES,   dims3d)
         last_sx, last_sz, last_sy = sx, sz, sy
     end
 
     local pos2d = {x = minp.x, y = minp.z}
-    local nv_base        = nm_base:get_2d_map_flat(pos2d)
-    local nv_detail      = nm_detail:get_2d_map_flat(pos2d)
-    local nv_hum         = nm_hum:get_2d_map_flat(pos2d)
-    local nv_temp        = nm_temp:get_2d_map_flat(pos2d)
-    local nv_caves_upper = nm_caves_upper:get_3d_map_flat(minp)
-    local nv_caves_deep  = nm_caves_deep:get_3d_map_flat(minp)
+    local nv_base   = nm_base:get_2d_map_flat(pos2d)
+    local nv_detail = nm_detail:get_2d_map_flat(pos2d)
+    local nv_hum    = nm_hum:get_2d_map_flat(pos2d)
+    local nv_temp   = nm_temp:get_2d_map_flat(pos2d)
+    local nv_caves_a = nm_caves_a:get_3d_map_flat(minp)
+    local nv_caves_b = nm_caves_b:get_3d_map_flat(minp)
+    local nv_giant   = nm_giant:get_3d_map_flat(minp)
 
     for zi = 0, sz - 1 do
         for xi = 0, sx - 1 do
@@ -292,13 +305,6 @@ minetest.register_on_generated(function(minp, maxp, seed)
                 biome_map[ni] = biome.engine_id
             end
 
-            local was_solid = true
-            if minp.y > emin.y then
-                local vi_below = area:index(x, minp.y - 1, z)
-                local node_below = data[vi_below]
-                was_solid = (node_below ~= c_air and node_below ~= c_water and node_below ~= c_lava)
-            end
-
             for y = minp.y, maxp.y do
                 local vi = area:index(x, y, z)
                 local current_node = data[vi]
@@ -311,10 +317,9 @@ minetest.register_on_generated(function(minp, maxp, seed)
                             data[vi] = c_air
                         end
                     end
-                    was_solid = false
+                    light[vi] = 240
                 else
                     local node_to_place = c_stone
-                    local current_is_solid = true
 
                     if y == surface_y then
                         if surface_y < SEA_LEVEL then
@@ -337,57 +342,76 @@ minetest.register_on_generated(function(minp, maxp, seed)
                     end
 
                     -----------------------------------------------------------
-                    -- DUAL-HÖHLEN LOGIK
+                    -- 3D-TUNNEL & RIESEN-HÖHLEN LOGIK
                     -----------------------------------------------------------
                     local is_cave = false
-                    local fill_with = c_air
+                    local is_lava_lake = false
 
-                    local yi = y - minp.y
-                    local ni3d = zi * sx * sy + yi * sx + xi + 1
+                    if y <= surface_y then
+                        local yi = y - minp.y
+                        local ni3d = zi * sx * sy + yi * sx + xi + 1
 
-                    -- SYSTEM 1: Obere Verbindungshöhlen (Oberfläche bis -850)
-                    if y <= surface_y and y >= -850 then
-                        -- Erlaubt Ausbrüche an der Oberfläche (Eingänge!), verhindert aber Löcher im Meeresboden
-                        if surface_y >= SEA_LEVEL or y < surface_y - 4 then
-                            -- Schwellenwert auf 0.12 gesenkt -> Höhlen sind deutlich häufiger und größer!
-                            if nv_caves_upper[ni3d] and nv_caves_upper[ni3d] > 0.12 then
+                        -- 1. RIESEN-HÖHLEN GENERIERUNG (Ab Y -1000 im Nether-Style)
+                        if y <= -1000 then
+                            if nv_giant[ni3d] and nv_giant[ni3d] > 0.25 then
                                 is_cave = true
-                                fill_with = c_air
+
+                                -- Der Lava-Ozean füllt die Riesenhöhlen erst ab -1300 komplett aus
+                                if y <= -1300 then
+                                    is_lava_lake = true
+                                end
                             end
                         end
-                    end
 
-                    -- SYSTEM 2: Tiefe Riesenhöhlen (Nether-artig erst AB -800)
-                    if y < -800 then
-                        -- Schwellenwert auf 0.10 gesenkt -> Extrem massive Hallenräume
-                        if nv_caves_deep[ni3d] and nv_caves_deep[ni3d] > 0.10 then
-                            is_cave = true
-                            -- Lavaspiegel innerhalb der Riesenhöhlen ab -1000
-                            if y <= -1000 then
-                                fill_with = c_lava
-                            else
-                                fill_with = c_air
+                        -- 2. RUNDE WORM-TUNNEL GENERIERUNG (Schmale Minecraft-Gänge)
+                        if not is_cave and nv_caves_a[ni3d] and nv_caves_b[ni3d] then
+                            local tunnel_density = (nv_caves_a[ni3d] ^ 2) + (nv_caves_b[ni3d] ^ 2)
+
+                            -- Niedriger Schwellenwert (0.014) erzwingt schmale Minecraft-Tunnel
+                            if tunnel_density < 0.014 then
+                                if y < surface_y - 3 or surface_y > SEA_LEVEL then
+                                    is_cave = true
+                                end
                             end
                         end
                     end
 
                     -----------------------------------------------------------
-                    -- NODE PLATZIERUNG & KRISTALLE
+                    -- BLOCK-SPLATZIERUNG & OPTIMIERTER KRISTALL-SPAWN
                     -----------------------------------------------------------
                     if is_cave then
-                        data[vi] = fill_with
+                        if is_lava_lake then
+                            data[vi] = c_lava
+                            light[vi] = 224
+                        else
+                            data[vi] = c_air
+                            light[vi] = 0
 
-                        if was_solid and fill_with == c_air then
-                            local pseudo_rand = (x * 17 + y * 31 + z * 43) % 100
-                            if pseudo_rand < 8 and #crystal_ids > 0 then
-                                local c_idx = (math.abs(x + y + z) % #crystal_ids) + 1
-                                data[vi] = crystal_ids[c_idx]
+                            -- Kristall-Logik: Absolut überarbeitet gegen Schweben und Reihen
+                            if y > minp.y then
+                                local vi_below = area:index(x, y - 1, z)
+                                local node_below = data[vi_below]
+
+                                -- Nur auf solidem Boden (keine Luft, kein Wasser/Lava, keine anderen Kristalle)
+                                local is_floor_solid = (node_below == c_stone or node_below == c_basalt or node_below == c_granite)
+
+                                if is_floor_solid and #crystal_ids > 0 then
+                                    -- Hochwertiger Sinus-Fraktal-Hash bricht Linienmuster komplett auf
+                                    local dot_product = x * 12.9898 + y * 78.233 + z * 437.585
+                                    local sin_hash = math.abs(math.sin(dot_product) * 43758.5453)
+                                    local pseudo_rand = math.floor((sin_hash - math.floor(sin_hash)) * 1000)
+
+                                    -- Erhöhte Chance (ca. 2.5% pro passendem Boden-Block)
+                                    if pseudo_rand < 25 then
+                                        local c_idx = (math.abs(x + y + z) % #crystal_ids) + 1
+                                        data[vi] = crystal_ids[c_idx]
+                                    end
+                                end
                             end
                         end
-                        was_solid = false
                     else
                         data[vi] = node_to_place
-                        was_solid = current_is_solid
+                        light[vi] = 0
                     end
                 end
             end
@@ -395,9 +419,11 @@ minetest.register_on_generated(function(minp, maxp, seed)
     end
 
     vm:set_data(data)
+    vm:set_light_data(light)
+
     minetest.generate_ores(vm, minp, maxp)
     minetest.generate_decorations(vm, minp, maxp)
-    vm:set_lighting({day = 15, night = 0}, emin, emax)
+
     vm:calc_lighting()
     vm:update_liquids()
     vm:write_to_map()
@@ -445,4 +471,4 @@ minetest.register_on_respawnplayer(function(player)
     return true
 end)
 
-minetest.log("action", "[st_terrain] Custom Terrain Generator & HUD-Patch erfolgreich initialisiert!")
+minetest.log("action", "[st_terrain] Custom Terrain Generator (Minecraft Caves & Nether Logic) erfolgreich aktualisiert!")
