@@ -122,3 +122,14 @@ minetest.register_craft({
         {"sti_core:block_magnesium", "sti_core:block_copper", "sti_core:block_magnesium"},
     }
 })
+
+-- Quary
+minetest.register_craft({
+    output = "sti_machines:upgrade_range",
+    recipe = {
+        {"sti_core:block_magnesium", "sti_core:ingot_tin", "sti_core:block_magnesium"},
+        {"sti_core:block_titanium", "sti_core:block_titanium", "sti_core:block_titanium"},
+        {"sti_core:block_magnesium", "sti_core:block_aluminum", "sti_core:block_magnesium"},
+    }
+})
+

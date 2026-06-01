@@ -2,6 +2,9 @@
 -- QUARRY (MINENBOHRER) - Mit Vorschau, 4 Upgrades (Unstapelbar) & Freiräumung
 -- =======================================================================
 
+-- Globaler Speicher für aktive Entitäten (verhindert doppeltes Spawnen)
+sti_machines.quarry_entities = sti_machines.quarry_entities or {}
+
 -- Hilfsfunktion: Berechnet die exakten Min/Max Abmessungen basierend auf Blickrichtung
 local function calculate_dimensions(pos, meta)
     local node = minetest.get_node(pos)
@@ -9,7 +12,6 @@ local function calculate_dimensions(pos, meta)
     local size_x = meta:get_int("size_x")
     local size_z = meta:get_int("size_z")
     local depth = meta:get_int("depth")
-    local limit_depth = meta:get_string("limit_depth")
 
     local min_x, max_x, min_z, max_z
 
@@ -36,13 +38,7 @@ local function calculate_dimensions(pos, meta)
         max_x = pos.x + math.floor(size_x / 2)
     end
 
-    -- KORREKTUR: Wenn das Limit AUS ist, grabe bis zum Map-Ende (-31000)
-    local min_y
-    if limit_depth == "false" then
-        min_y = -31000
-    else
-        min_y = pos.y - depth
-    end
+    local min_y = pos.y - depth
     local max_y = pos.y
 
     return min_x, max_x, min_y, max_y, min_z, max_z
@@ -62,8 +58,24 @@ local function clear_quarry_frames(pos, meta)
         end
     end
 
-    -- Alle Gantry/Bohrkopf-Entitäten im Umkreis suchen und entfernen
-    for _, obj in ipairs(minetest.get_objects_inside_radius(pos, 30)) do
+    -- Zuerst über die globale Tabelle löschen
+    local pos_hash = minetest.hash_node_position(pos)
+    if sti_machines.quarry_entities[pos_hash] then
+        local refs = sti_machines.quarry_entities[pos_hash]
+        if refs.gantry_x and refs.gantry_x:get_pos() then refs.gantry_x:remove() end
+        if refs.carrier and refs.carrier:get_pos() then refs.carrier:remove() end
+        if refs.pipe and refs.pipe:get_pos() then refs.pipe:remove() end
+        sti_machines.quarry_entities[pos_hash] = nil
+    end
+
+    -- Dynamischen Sicherheitsradius für Fallback-Bereinigung berechnen
+    local size_x = meta:get_int("size_x") or 5
+    local size_z = meta:get_int("size_z") or 5
+    local depth = meta:get_int("depth") or 20
+    local search_radius = math.max(30, size_x + size_z + depth + 15)
+
+    -- Alle verbliebenen Gantry/Bohrkopf-Entitäten im Umkreis entfernen
+    for _, obj in ipairs(minetest.get_objects_inside_radius(pos, search_radius)) do
         local ent = obj:get_luaentity()
         if ent and ent.quarry_pos and vector.equals(ent.quarry_pos, pos) then
             if ent.name == "sti_machines:gantry_x" or
@@ -109,7 +121,7 @@ function sti_machines.update_quarry_formspec(pos)
     elseif status == "digging" then status_msg = "Gräbt..."
     elseif status == "full" then status_msg = "Inventar VOLL! (Warte...)"
     elseif status == "paused" then status_msg = "Pausiert."
-    elseif status == "completed" then status_msg = "Arbeit beendet. (Gerüst steht)"
+    elseif status == "completed" then status_msg = "Abgesteckt/Fertig."
     end
 
     local formspec = "size[8,12.5]" ..
@@ -125,14 +137,11 @@ function sti_machines.update_quarry_formspec(pos)
         formspec = formspec .. "field[4.1,1.5;1.5,1;depth;Tiefe (Y);Unendlich]"
     end
 
-    -- Dynamische Buttons je nach Status
-    if status == "idle" then
+    -- Dynamische Buttons
+    if status == "idle" or status == "completed" then
         formspec = formspec .. "button[6.0,1.2;1.5,0.8;start;Start]"
         local preview_lbl = (preview == "true") and "Vorschau: AN" or "Vorschau: AUS"
         formspec = formspec .. "button[6.0,2.1;1.5,0.6;toggle_preview;" .. preview_lbl .. "]"
-    elseif status == "completed" then
-        formspec = formspec .. "button[6.0,1.2;1.5,0.6;start;Neustart]"
-        formspec = formspec .. "button[6.0,2.0;1.5,0.6;stop;Gerüst räumen]"
     elseif status == "paused" then
         formspec = formspec .. "button[6.0,1.2;1.5,0.6;resume;Fortsetzen]"
         formspec = formspec .. "button[6.0,2.0;1.5,0.6;stop;Stopp (Abbruch)]"
@@ -309,7 +318,6 @@ local quarry_def = {
 
         -- START
         if fields.start and (status == "idle" or status == "completed") then
-            clear_quarry_frames(pos, meta)
             meta:set_string("preview_enabled", "false")
 
             local min_x, max_x, min_y, max_y, min_z, max_z = calculate_dimensions(pos, meta)
@@ -358,6 +366,7 @@ local quarry_def = {
             meta:set_string("frame_queue", minetest.serialize(frame_positions))
             meta:set_int("frame_index", 1)
 
+            -- Initialwerte Abbau
             meta:set_int("cur_x", min_x)
             meta:set_int("cur_y", pos.y - 1)
             meta:set_int("cur_z", min_z)
@@ -384,7 +393,7 @@ local quarry_def = {
         local node = minetest.get_node(pos)
         local preview = meta:get_string("preview_enabled") == "true"
 
-        -- Vorschau-Modus
+        -- Vorschau-Modus (Grüne Punkte lückenlos)
         if status == "idle" or status == "completed" then
             if preview then
                 local min_x, max_x, _, _, min_z, max_z = calculate_dimensions(pos, meta)
@@ -410,7 +419,7 @@ local quarry_def = {
                     spawn_preview_dot({x=x, y=bottom_y, z=f_min_z})
                     spawn_preview_dot({x=x, y=bottom_y, z=f_max_z})
                     spawn_preview_dot({x=x, y=top_y, z=f_min_z})
-                    spawn_preview_dot({x=top_y, y=top_y, z=f_max_z})
+                    spawn_preview_dot({x=x, y=top_y, z=f_max_z})
                 end
                 for z = f_min_z + 1, f_max_z - 1 do
                     spawn_preview_dot({x=f_min_x, y=bottom_y, z=z})
@@ -474,7 +483,7 @@ local quarry_def = {
                 if space_found then status = "digging"; meta:set_string("status", "digging") end
             end
 
-            -- Loop-Abarbeitung mit Geschwindigkeitskarten
+            -- Loop-Abarbeitung mit Geschwindigkeitskarten (1 bis 4)
             if status == "building" or status == "clearing" or status == "digging" then
                 local speed_boost = 0
                 local energy_boost = 0
@@ -546,6 +555,7 @@ local quarry_def = {
                                 meta:set_int("frame_index", idx + 1)
                             end
                         else
+                            -- Wechsel in NEUE Phase: Freiräumung des Volumens
                             status = "clearing"
                             meta:set_string("status", "clearing")
                             meta:set_int("clear_x", meta:get_int("min_x"))
@@ -553,7 +563,7 @@ local quarry_def = {
                             meta:set_int("clear_z", meta:get_int("min_z"))
                         end
 
-                    -- PHASE 2: Innenraum leeren
+                    -- PHASE 2: Volumen innerhalb des Rahmens komplett leeren
                     elseif status == "clearing" then
                         local cx = meta:get_int("clear_x")
                         local cy = meta:get_int("clear_y")
@@ -612,7 +622,7 @@ local quarry_def = {
                         meta:set_int("clear_y", cy)
                         meta:set_int("clear_z", cz)
 
-                    -- PHASE 3: Bohren nach unten
+                    -- PHASE 3: Normales Bohren (Nach unten)
                     elseif status == "digging" then
                         local cur_x = meta:get_int("cur_x")
                         local cur_y = meta:get_int("cur_y")
@@ -662,6 +672,7 @@ local quarry_def = {
                                         if cur_y < min_y then
                                             status = "completed"
                                             meta:set_string("status", "completed")
+                                            clear_quarry_frames(pos, meta)
                                         end
                                     end
                                 end
@@ -688,29 +699,63 @@ local quarry_def = {
             end
         end
 
-        -- Gantry-Entitäten managen
+        -- Spawnen und Tracking der Entitäten über globalen RAM-Speicher & dynamischen Suchradius
         if status == "clearing" or status == "clearing_full" or status == "digging" or status == "full" or status == "paused" then
-            local gantry_x_obj, carrier_obj, pipe_obj
-            for _, obj in ipairs(minetest.get_objects_inside_radius(pos, 30)) do
-                local ent = obj:get_luaentity()
-                if ent and ent.quarry_pos and vector.equals(ent.quarry_pos, pos) then
-                    if ent.name == "sti_machines:gantry_x" then gantry_x_obj = obj
-                    elseif ent.name == "sti_machines:gantry_carrier" then carrier_obj = obj
-                    elseif ent.name == "sti_machines:drill_pipe" then pipe_obj = obj end
+            local pos_hash = minetest.hash_node_position(pos)
+            sti_machines.quarry_entities[pos_hash] = sti_machines.quarry_entities[pos_hash] or {}
+            local refs = sti_machines.quarry_entities[pos_hash]
+
+            local gantry_x_obj = refs.gantry_x
+            local carrier_obj = refs.carrier
+            local pipe_obj = refs.pipe
+
+            -- Validierung der gemerkten Objekte (Prüfung auf Gültigkeit)
+            if gantry_x_obj and not gantry_x_obj:get_pos() then gantry_x_obj = nil; refs.gantry_x = nil end
+            if carrier_obj and not carrier_obj:get_pos() then carrier_obj = nil; refs.carrier = nil end
+            if pipe_obj and not pipe_obj:get_pos() then pipe_obj = nil; refs.pipe = nil end
+
+            -- Fallback: Falls RAM-Speicher leer ist (z.B. Serverneustart), im dynamischen Echtzeit-Radius suchen
+            if not gantry_x_obj or not carrier_obj or not pipe_obj then
+                local size_x = meta:get_int("size_x")
+                local size_z = meta:get_int("size_z")
+                local depth = meta:get_int("depth")
+                local search_radius = math.max(30, size_x + size_z + depth + 15)
+
+                for _, obj in ipairs(minetest.get_objects_inside_radius(pos, search_radius)) do
+                    local ent = obj:get_luaentity()
+                    if ent and ent.quarry_pos and vector.equals(ent.quarry_pos, pos) then
+                        if ent.name == "sti_machines:gantry_x" and not gantry_x_obj then
+                            gantry_x_obj = obj; refs.gantry_x = obj
+                        elseif ent.name == "sti_machines:gantry_carrier" and not carrier_obj then
+                            carrier_obj = obj; refs.carrier = obj
+                        elseif ent.name == "sti_machines:drill_pipe" and not pipe_obj then
+                            pipe_obj = obj; refs.pipe = obj
+                        end
+                    end
                 end
             end
 
+            -- Wirklich nur neu spawnen, wenn absolut nirgends auffindbar
             if not gantry_x_obj then
                 gantry_x_obj = minetest.add_entity({x=pos.x, y=pos.y+3, z=pos.z}, "sti_machines:gantry_x")
-                if gantry_x_obj then gantry_x_obj:get_luaentity().quarry_pos = vector.new(pos) end
+                if gantry_x_obj then
+                    gantry_x_obj:get_luaentity().quarry_pos = vector.new(pos)
+                    refs.gantry_x = gantry_x_obj
+                end
             end
             if not carrier_obj then
                 carrier_obj = minetest.add_entity({x=pos.x, y=pos.y+3, z=pos.z}, "sti_machines:gantry_carrier")
-                if carrier_obj then carrier_obj:get_luaentity().quarry_pos = vector.new(pos) end
+                if carrier_obj then
+                    carrier_obj:get_luaentity().quarry_pos = vector.new(pos)
+                    refs.carrier = carrier_obj
+                end
             end
             if not pipe_obj then
                 pipe_obj = minetest.add_entity({x=pos.x, y=pos.y+3, z=pos.z}, "sti_machines:drill_pipe")
-                if pipe_obj then pipe_obj:get_luaentity().quarry_pos = vector.new(pos) end
+                if pipe_obj then
+                    pipe_obj:get_luaentity().quarry_pos = vector.new(pos)
+                    refs.pipe = pipe_obj
+                end
             end
         end
 
@@ -731,7 +776,7 @@ local quarry_def = {
 }
 
 -- =======================================================================
--- GANTRY ENTITÄTEN DEFINITIONEN
+-- GANTRY ENTITÄTEN: FLÜSSIGE BEWEGUNG UND SCHUTZ VOR GRAFIK-ARTEFAKTEN
 -- =======================================================================
 
 local entity_base = {
@@ -746,7 +791,7 @@ local entity_base = {
     end,
 }
 
--- Gantry X
+-- 1. X-Achsen Schiene (Gantry X)
 local gantry_x_def = table.copy(entity_base)
 gantry_x_def.initial_properties = {
     visual = "cube",
@@ -772,10 +817,17 @@ gantry_x_def.on_step = function(self, dtime)
     local target_z = (status == "clearing" or status == "clearing_full") and meta:get_int("clear_z") or meta:get_int("cur_z")
     local center_x = (min_x + max_x) / 2
 
+    -- SET PROPERTIES NUR EINMAL AUFRUFEN
     if not self.initialized_size then
         local size_x = (max_x - min_x) + 1
         self.object:set_properties({ visual_size = {x = size_x, y = 0.2, z = 0.2} })
         self.initialized_size = true
+    end
+
+    -- Beim allerersten Initialisieren sofort teleportieren, um diagonales Fliegen zu verhindern
+    if not self.initialized_pos then
+        self.object:set_pos({x = center_x, y = top_y, z = target_z})
+        self.initialized_pos = true
     end
 
     local pos = self.object:get_pos()
@@ -793,7 +845,7 @@ gantry_x_def.on_step = function(self, dtime)
 end
 minetest.register_entity("sti_machines:gantry_x", gantry_x_def)
 
--- Gantry Carrier
+-- 2. Laufkatze (Gantry Carrier)
 local gantry_carrier_def = table.copy(entity_base)
 gantry_carrier_def.initial_properties = {
     visual = "cube",
@@ -825,6 +877,12 @@ gantry_carrier_def.on_step = function(self, dtime)
         target_z = meta:get_int("cur_z")
     end
 
+    -- Beim allerersten Initialisieren sofort teleportieren
+    if not self.initialized_pos then
+        self.object:set_pos({x = target_x, y = top_y, z = target_z})
+        self.initialized_pos = true
+    end
+
     local pos = self.object:get_pos()
     if pos then
         local target = {x = target_x, y = top_y, z = target_z}
@@ -840,7 +898,7 @@ gantry_carrier_def.on_step = function(self, dtime)
 end
 minetest.register_entity("sti_machines:gantry_carrier", gantry_carrier_def)
 
--- Drill Pipe
+-- 3. Bohrstange (Drill Pipe)
 local drill_pipe_def = table.copy(entity_base)
 drill_pipe_def.initial_properties = {
     visual = "cube",
@@ -877,6 +935,12 @@ drill_pipe_def.on_step = function(self, dtime)
         self.last_height = height
     end
 
+    -- Beim allerersten Initialisieren sofort teleportieren
+    if not self.initialized_pos then
+        self.object:set_pos({x = cur_x, y = top_y - (height / 2), z = cur_z})
+        self.initialized_pos = true
+    end
+
     local pos = self.object:get_pos()
     if pos then
         local target = {x = cur_x, y = top_y - (height / 2), z = cur_z}
@@ -893,7 +957,7 @@ end
 minetest.register_entity("sti_machines:drill_pipe", drill_pipe_def)
 
 -- =======================================================================
--- BLÖCKE REGISTRIERUNG
+-- REGISTRIERUNG RAHMEN-NODE & QUARRY NODES
 -- =======================================================================
 
 minetest.register_node("sti_machines:quarry_frame", {
@@ -926,7 +990,7 @@ minetest.register_node("sti_machines:quarry", q_inactive)
 
 local q_active = table.copy(quarry_def)
 q_active.tiles = {
-    "stimachines_machine_top.png",    "stimachines_machine_bottom.png",
+	"stimachines_machine_top.png",    "stimachines_machine_bottom.png",
     "stimachines_machine_side.png",   "stimachines_machine_side.png",
     "stimachines_machine_side.png",   "stimachines_quarry_front_active.png"
 }
@@ -934,7 +998,10 @@ q_active.groups = {cracky = 2, technic_machine = 1, machine_item = 1, not_in_cre
 q_active.light_source = 7
 minetest.register_node("sti_machines:quarry_active", q_active)
 
--- UPGRADES
+-- =======================================================================
+-- CRAFTITEMS REGISTRIERUNG (UNSTAPELBAR: stack_max = 1)
+-- =======================================================================
+
 for i = 1, 10 do
     minetest.register_craftitem("sti_machines:upgrade_speed_" .. i, {
         description = "Quarry Geschwindigkeits-Upgrade (Stufe " .. i .. ")\n+ " .. (i * 10) .. "% Tempo, + " .. (i * 20) .. "% Stromverbrauch",
