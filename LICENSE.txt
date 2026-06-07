@@ -11,22 +11,22 @@ email: info@steffes.industries
 License of media (textures, sounds, banners, and icons)
 ------------------------------------------------------
 For original minetest_game content:
-Copyright (C) 2010-2012 celeron55, Perttu Ahola <celeron55@gmail.com>[cite: 1]
-Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0)[cite: 1]
-http://creativecommons.org/licenses/by-sa/3.0/[cite: 1]
+Copyright (C) 2010-2012 celeron55, Perttu Ahola <celeron55@gmail.com>
+Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0)
+http://creativecommons.org/licenses/by-sa/3.0/
 
 For Industrial Survival additions, menu banner, icon, and modifications:
 Copyright (C) 2026 Raphael Steffes / Steffes Industries (https://www.steffes.industries)
 Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
 https://creativecommons.org/licenses/by-sa/4.0/
 
-See README.txt in each mod directory for information about other authors.[cite: 1]
+See README.txt in each mod directory for information about other authors.
 
 
 License of source code
 ----------------------
 For original minetest_game components:
-Copyright (C) 2010-2012 celeron55, Perttu Ahola <celeron55@gmail.com>[cite: 1]
+Copyright (C) 2010-2012 celeron55, Perttu Ahola <celeron55@gmail.com>
 Licensed under the GNU Lesser General Public License version 2.1 (LGPL-2.1).
 
 For Industrial Survival modifications and additions:
@@ -55,4 +55,4 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 -------------------------------------------------------------------------------
 
-See README.txt in each mod directory for specific information about other authors.[cite: 1]
+See README.txt in each mod directory for specific information about other authors.
