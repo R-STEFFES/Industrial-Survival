@@ -1,7 +1,7 @@
 -- Global zugängliche Funktionen für deine Logistik-Mod
-mylogistics = {}
+sti_mylogistics = {}
 
-function mylogistics.register_machine_as_consumer(pos, power_demand)
+function sti_mylogistics.register_machine_as_consumer(pos, power_demand)
     -- Funktion wird später von deinen Maschinen aufgerufen
     -- Erlaubt es, Energie aus dem Kabelnetzwerk zu ziehen
 end

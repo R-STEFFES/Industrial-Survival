@@ -11,12 +11,12 @@ function tank.check_and_calculate_tank(controller_pos)
     local max_p = {x = controller_pos.x, y = controller_pos.y, z = controller_pos.z}
 
     local function is_tank_part(name)
-        return name == "mytank:wall" or
-               name == "mytank:glass" or
-               name == "mytank:inlet" or
-               name == "mytank:outlet" or
-               name == "mytank:controller" or
-               name == "mytank:controller_active"
+        return name == "sti_mytank:wall" or
+               name == "sti_mytank:glass" or
+               name == "sti_mytank:inlet" or
+               name == "sti_mytank:outlet" or
+               name == "sti_mytank:controller" or
+               name == "sti_mytank:controller_active"
     end
 
     local visited = {}
@@ -94,7 +94,7 @@ function tank.check_and_calculate_tank(controller_pos)
 
                 if is_edge_x and is_edge_y and is_edge_z then
 
-                    if node.name ~= "mytank:wall" then
+                    if node.name ~= "sti_mytank:wall" then
                         valid_structure = false
                         break
                     end
@@ -136,9 +136,9 @@ function tank.check_and_calculate_tank(controller_pos)
         meta:set_int("capacity", total_capacity)
         meta:set_int("block_size", #air_blocks)
 
-        if current_node.name == "mytank:controller" then
+        if current_node.name == "sti_mytank:controller" then
             minetest.swap_node(controller_pos, {
-                name = "mytank:controller_active",
+                name = "sti_mytank:controller_active",
                 param1 = current_node.param1,
                 param2 = current_node.param2
             })
@@ -161,9 +161,9 @@ function tank.set_tank_invalid(pos, current_node)
     meta:set_int("amount", 0)
     meta:set_int("block_size", 0)
 
-    if current_node.name == "mytank:controller_active" then
+    if current_node.name == "sti_mytank:controller_active" then
         minetest.swap_node(pos, {
-            name = "mytank:controller",
+            name = "sti_mytank:controller",
             param1 = current_node.param1,
             param2 = current_node.param2
         })
@@ -364,7 +364,7 @@ function tank.show_formspec(pos, player_name)
     if player_name then
 
         local formname =
-            "mytank:controller_" ..
+            "sti_mytank:controller_" ..
             pos.x .. "_" ..
             pos.y .. "_" ..
             pos.z
@@ -381,7 +381,7 @@ minetest.register_on_player_receive_fields(function(player, formname, fields)
 
     local x, y, z =
         formname:match(
-            "^mytank:controller_([%-%d]+)_([%-%d]+)_([%-%d]+)$"
+            "^sti_mytank:controller_([%-%d]+)_([%-%d]+)_([%-%d]+)$"
         )
 
     if x and y and z then
@@ -422,7 +422,7 @@ end)
 -- 4. NODES
 -- =======================================================================
 
-minetest.register_node("mytank:controller", {
+minetest.register_node("sti_mytank:controller", {
     description = "Tank Controller",
     tiles = {"mytank_controller.png"},
     groups = {cracky = 2},
@@ -477,7 +477,7 @@ minetest.register_node("mytank:controller", {
     end
 })
 
-minetest.register_node("mytank:controller_active", {
+minetest.register_node("sti_mytank:controller_active", {
     description = "Tank Controller Aktiv",
     tiles = {"mytank_controller_active.png"},
     light_source = 8,
@@ -516,13 +516,13 @@ minetest.register_node("mytank:controller_active", {
     end
 })
 
-minetest.register_node("mytank:wall", {
+minetest.register_node("sti_mytank:wall", {
     description = "Tank Wand",
     tiles = {"mytank_wall.png"},
     groups = {cracky = 3}
 })
 
-minetest.register_node("mytank:glass", {
+minetest.register_node("sti_mytank:glass", {
     description = "Tank Glas",
     drawtype = "glasslike",
     tiles = {"mytank_glass.png"},
@@ -535,13 +535,13 @@ minetest.register_node("mytank:glass", {
     }
 })
 
-minetest.register_node("mytank:inlet", {
+minetest.register_node("sti_mytank:inlet", {
     description = "Tank Einlass",
     tiles = {"mytank_inlet.png"},
     groups = {cracky = 3}
 })
 
-minetest.register_node("mytank:outlet", {
+minetest.register_node("sti_mytank:outlet", {
     description = "Tank Auslass",
     tiles = {"mytank_outlet.png"},
     groups = {cracky = 3}
@@ -551,7 +551,7 @@ minetest.register_node("mytank:outlet", {
 -- 5. FLUID DISPLAY
 -- =======================================================================
 
-minetest.register_entity("mytank:fluid_display", {
+minetest.register_entity("sti_mytank:fluid_display", {
 
     initial_properties = {
 
@@ -620,7 +620,7 @@ function tank.update_visuals(controller_pos, air_blocks)
             local ent = obj:get_luaentity()
 
             if ent
-            and ent.name == "mytank:fluid_display"
+            and ent.name == "sti_mytank:fluid_display"
             and ent.controller_pos
             and vector.equals(
                 ent.controller_pos,
@@ -688,7 +688,7 @@ function tank.update_visuals(controller_pos, air_blocks)
         local ent = obj:get_luaentity()
 
         if ent
-        and ent.name == "mytank:fluid_display"
+        and ent.name == "sti_mytank:fluid_display"
         and ent.controller_pos
         and vector.equals(
             ent.controller_pos,
@@ -704,7 +704,7 @@ function tank.update_visuals(controller_pos, air_blocks)
         fluid_obj =
             minetest.add_entity(
                 center,
-                "mytank:fluid_display"
+                "sti_mytank:fluid_display"
             )
 
         if fluid_obj then

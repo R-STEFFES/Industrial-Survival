@@ -2,7 +2,7 @@
 -- 3. STROMKABEL (Aktivierte Energieverteilung)
 -- =======================================================================
 
-minetest.register_node("mylogistics:cable", {
+minetest.register_node("sti_mylogistics:cable", {
     description = "Stromkabel (Kupfer)",
     drawtype = "nodebox",
     paramtype = "light",
@@ -18,7 +18,7 @@ minetest.register_node("mylogistics:cable", {
         connect_left = {{-0.5, -0.1, -0.1, -0.1, 0.1, 0.1}},
         connect_right = {{0.1, -0.1, -0.1, 0.5, 0.1, 0.1}},
     },
-    connects_to = {"mylogistics:cable", "group:technic_machine", "group:machine_power"},
+    connects_to = {"sti_mylogistics:cable", "group:technic_machine", "group:machine_power"},
 
     on_construct = function(pos)
         minetest.get_node_timer(pos):start(1.0)
@@ -43,7 +43,7 @@ minetest.register_node("mylogistics:cable", {
 
             if n_def then
                 -- Falls es ein anderes Kabel ist, merken zum Aufwecken
-                if n_name == "mylogistics:cable" then
+                if n_name == "sti_mylogistics:cable" then
                     table.insert(neighbor_cables, neighbor_pos)
                 else
                     local nmeta = minetest.get_meta(neighbor_pos)

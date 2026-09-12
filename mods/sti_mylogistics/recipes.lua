@@ -7,7 +7,7 @@
 
 -- Standard Fluiduct (Eisen)
 minetest.register_craft({
-    output = "mylogistics:fluiduct 6",
+    output = "sti_mylogistics:fluiduct 6",
     recipe = {
         {"sti_core:ingot_iron", "sti_core:ingot_iron", "sti_core:ingot_iron"},
         {"", "", ""},
@@ -17,7 +17,7 @@ minetest.register_craft({
 
 -- Fluiduct mit Glas (Eisen + Glas)
 minetest.register_craft({
-    output = "mylogistics:fluiduct_glass 6",
+    output = "sti_mylogistics:fluiduct_glass 6",
     recipe = {
         {"sti_core:ingot_iron", "sti_core:ingot_iron", "sti_core:ingot_iron"},
         {"default:glass", "default:glass", "default:glass"},
@@ -31,7 +31,7 @@ minetest.register_craft({
 
 -- Standard Itemduct (Zinn/Tin - falls nicht vorhanden, Eisen als Fallback)
 minetest.register_craft({
-    output = "mylogistics:itemduct 6",
+    output = "sti_mylogistics:itemduct 6",
     recipe = {
         {"sti_core:ingot_tin", "sti_core:ingot_tin", "sti_core:ingot_tin"},
         {"", "", ""},
@@ -41,7 +41,7 @@ minetest.register_craft({
 
 -- Itemduct Transparent (Zinn + Glas)
 minetest.register_craft({
-    output = "mylogistics:itemduct_transparent 6",
+    output = "sti_mylogistics:itemduct_transparent 6",
     recipe = {
         {"sti_core:ingot_tin", "sti_core:ingot_tin", "sti_core:ingot_tin"},
         {"default:glass", "default:glass", "default:glass"},
@@ -55,7 +55,7 @@ minetest.register_craft({
 
 -- Stromkabel (Kupfer)
 minetest.register_craft({
-    output = "mylogistics:cable 6",
+    output = "sti_mylogistics:cable 6",
     recipe = {
         {"", "", ""},
         {"sti_core:ingot_copper", "sti_core:ingot_copper", "sti_core:ingot_copper"},
@@ -69,7 +69,7 @@ minetest.register_craft({
 
 -- Servo (Extraktion) - Nutzt Kupfer-Nuggets für die Mechanik
 minetest.register_craft({
-    output = "mylogistics:servo",
+    output = "sti_mylogistics:servo",
     recipe = {
         {"", "sti_core:nugget_copper", ""},
         {"sti_core:nugget_copper", "sti_core:ingot_iron", "sti_core:nugget_copper"},
@@ -79,7 +79,7 @@ minetest.register_craft({
 
 -- Filter - Nutzt Gold-Nuggets für Präzision
 minetest.register_craft({
-    output = "mylogistics:filter",
+    output = "sti_mylogistics:filter",
     recipe = {
         {"", "sti_core:nugget_gold", ""},
         {"sti_core:nugget_gold", "sti_core:ingot_iron", "sti_core:nugget_gold"},

@@ -248,7 +248,7 @@ local function open_upgrade_formspec(pos, player, upgrade_type, dir_str)
 
     minetest.show_formspec(
         player:get_player_name(),
-        "mylogistics:upgrade_" .. pos_string,
+        "sti_mylogistics:upgrade_" .. pos_string,
         formspec
     )
 end
@@ -257,7 +257,7 @@ end
 -- CRAFTITEMS
 -- =======================================================================
 
-minetest.register_craftitem("mylogistics:servo", {
+minetest.register_craftitem("sti_mylogistics:servo", {
     description = "Servo\nRechtsklicke ein Rohr neben einer Kiste, um es anzuheften.",
     inventory_image = "mylogistics_servo.png",
 
@@ -277,7 +277,7 @@ minetest.register_craftitem("mylogistics:servo", {
         local dir_str = dir_to_string(dir)
         local is_trans = string.find(node.name, "_transparent") and "_transparent" or ""
 
-        minetest.swap_node(pos, {name = "mylogistics:itemduct" .. is_trans .. "_servo_" .. dir_str})
+        minetest.swap_node(pos, {name = "sti_mylogistics:itemduct" .. is_trans .. "_servo_" .. dir_str})
         local meta = minetest.get_meta(pos)
         meta:set_int("servo_active", 1)
         meta:set_int("filter_mode", 1)
@@ -292,7 +292,7 @@ minetest.register_craftitem("mylogistics:servo", {
     end,
 })
 
-minetest.register_craftitem("mylogistics:filter", {
+minetest.register_craftitem("sti_mylogistics:filter", {
     description = "Filter\nRechtsklicke ein Rohr neben einer Kiste, um es anzuheften.",
     inventory_image = "mylogistics_filter.png",
 
@@ -312,7 +312,7 @@ minetest.register_craftitem("mylogistics:filter", {
         local dir_str = dir_to_string(dir)
         local is_trans = string.find(node.name, "_transparent") and "_transparent" or ""
 
-        minetest.swap_node(pos, {name = "mylogistics:itemduct" .. is_trans .. "_filter_" .. dir_str})
+        minetest.swap_node(pos, {name = "sti_mylogistics:itemduct" .. is_trans .. "_filter_" .. dir_str})
         local meta = minetest.get_meta(pos)
         meta:set_int("filter_mode", 0)
         meta:set_string("direction", dir_str)
@@ -331,7 +331,7 @@ minetest.register_craftitem("mylogistics:filter", {
 -- =======================================================================
 
 for _, t in ipairs(DUCT_TYPES) do
-    minetest.register_node("mylogistics:itemduct" .. t.suffix, {
+    minetest.register_node("sti_mylogistics:itemduct" .. t.suffix, {
         description = t.desc,
         drawtype = "nodebox",
         paramtype = "light",
@@ -365,7 +365,7 @@ for _, t in ipairs(DUCT_TYPES) do
         local servo_tiles = { t.tiles[1], t.tiles[1], t.tiles[1], t.tiles[1], t.tiles[1], t.tiles[1] }
         servo_tiles[servo_side] = "mylogistics_itemduct_servo.png"
 
-        minetest.register_node("mylogistics:itemduct" .. t.suffix .. "_servo_" .. dname, {
+        minetest.register_node("sti_mylogistics:itemduct" .. t.suffix .. "_servo_" .. dname, {
             description = t.desc .. " mit Servo",
             drawtype = "nodebox",
             paramtype = "light",
@@ -402,7 +402,7 @@ for _, t in ipairs(DUCT_TYPES) do
         local filter_tiles = { t.tiles[1], t.tiles[1], t.tiles[1], t.tiles[1], t.tiles[1], t.tiles[1] }
         filter_tiles[servo_side] = "mylogistics_itemduct_filter.png"
 
-        minetest.register_node("mylogistics:itemduct" .. t.suffix .. "_filter_" .. dname, {
+        minetest.register_node("sti_mylogistics:itemduct" .. t.suffix .. "_filter_" .. dname, {
             description = t.desc .. " mit Filter",
             drawtype = "nodebox",
             paramtype = "light",
@@ -611,7 +611,7 @@ end)
 -- FORMSPEC CALLBACKS
 -- =======================================================================
 minetest.register_on_player_receive_fields(function(player, formname, fields)
-    if string.sub(formname, 1, 20) ~= "mylogistics:upgrade_" then return end
+    if string.sub(formname, 1, 20) ~= "sti_mylogistics:upgrade_" then return end
     local pos_str = string.sub(formname, 21)
     local pos = minetest.string_to_pos(pos_str)
     if not pos then return end

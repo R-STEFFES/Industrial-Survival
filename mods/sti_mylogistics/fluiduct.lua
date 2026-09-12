@@ -9,7 +9,7 @@ local directions = {
 }
 
 local function find_tank_controller(pos)
-    return minetest.find_node_near(pos, 10, {"mytank:controller_active", "mytank:controller"})
+    return minetest.find_node_near(pos, 10, {"sti_mytank:controller_active", "sti_mytank:controller"})
 end
 
 local function process_fluid_transport(pos)
@@ -36,7 +36,7 @@ local function process_fluid_transport(pos)
                     display_timer = 5
                     break
                 end
-            elseif neighbor_node.name == "mytank:outlet" then
+            elseif neighbor_node.name == "sti_mytank:outlet" then
                 local c_pos = find_tank_controller(neighbor_pos)
                 if c_pos then
                     local cmeta = minetest.get_meta(c_pos)
@@ -65,7 +65,7 @@ local function process_fluid_transport(pos)
             local npos = vector.add(pos, dir)
             local nnode = minetest.get_node(npos)
 
-            if nnode.name == "mytank:inlet" then
+            if nnode.name == "sti_mytank:inlet" then
                 table.insert(targets, {pos = npos, type = "tank"})
             elseif minetest.get_item_group(nnode.name, "fluiduct") > 0 then
                 local nmeta = minetest.get_meta(npos)
@@ -204,7 +204,7 @@ local function register_duct(name, desc, tiles, alpha)
                 connect_left = {{-0.5, -0.2, -0.2, -0.2, 0.2, 0.2}},
                 connect_right = {{0.2, -0.2, -0.2, 0.5, 0.2, 0.2}},
             },
-            connects_to = {"group:fluiduct", "mytank:inlet", "mytank:outlet", "group:machine_fluid"},
+            connects_to = {"group:fluiduct", "sti_mytank:inlet", "sti_mytank:outlet", "group:machine_fluid"},
             on_construct = function(pos)
                 minetest.get_node_timer(pos):start(0.2)
             end,
@@ -216,5 +216,5 @@ local function register_duct(name, desc, tiles, alpha)
     end
 end
 
-register_duct("mylogistics:fluiduct", "Fluiduct (Standard)", {"mylogistics_fluiduct.png"}, nil)
-register_duct("mylogistics:fluiduct_glass", "Fluiduct (Glas)", {"mylogistics_fluiduct_glass.png"}, "blend")
+register_duct("sti_mylogistics:fluiduct", "Fluiduct (Standard)", {"mylogistics_fluiduct.png"}, nil)
+register_duct("sti_mylogistics:fluiduct_glass", "Fluiduct (Glas)", {"mylogistics_fluiduct_glass.png"}, "blend")
