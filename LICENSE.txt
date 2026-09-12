@@ -20,7 +20,7 @@ Copyright (C) 2026 Raphael Steffes / Steffes Industries (https://www.steffes.ind
 Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
 https://creativecommons.org/licenses/by-sa/4.0/
 
-See README.txt in each mod directory for information about other authors.
+See the README and license files in the individual mod directories for information about other authors.
 
 
 License of source code
@@ -55,4 +55,4 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 -------------------------------------------------------------------------------
 
-See README.txt in each mod directory for specific information about other authors.
+See the README and license files in the individual mod directories for specific information about other authors.
